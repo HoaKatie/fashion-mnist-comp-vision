@@ -10,21 +10,13 @@ from torchvision import datasets, transforms
 
 IMAGE_SIZE = 32
 _DATASETS = {
-    "mnist": datasets.MNIST,
     "fashion_mnist": datasets.FashionMNIST,
-    "cifar10": datasets.CIFAR10,
 }
-_CHANNELS = {"mnist": 1, "fashion_mnist": 1, "cifar10": 3}
-_NEEDS_PADDING = {"mnist", "fashion_mnist"}  # 28x28 -> 32x32
-
-
-def _check(name):
-    if name not in _DATASETS:
-        raise ValueError(f"Unknown dataset {name!r}. Choose from {sorted(_DATASETS)}")
+_CHANNELS = {"fashion_mnist": 1}
+_NEEDS_PADDING = True
 
 
 def dataset_info(name):
-    _check(name)
     return {"channels": _CHANNELS[name], "num_classes": 10, "image_size": IMAGE_SIZE}
 
 
@@ -40,7 +32,6 @@ def _transform(name):
 
 
 def get_dataset(name, split, root="data"):
-    _check(name)
     if split not in ("train", "test"):
         raise ValueError("split must be 'train' or 'test'")
     return _DATASETS[name](root=root, train=split == "train", download=True, transform=_transform(name))

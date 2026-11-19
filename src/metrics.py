@@ -21,9 +21,6 @@ import torch.nn.functional as F
 from scipy import linalg
 
 
-# --------------------------------------------------------------------------- #
-# Distribution-level metrics (operate on feature vectors)
-# --------------------------------------------------------------------------- #
 def frechet_distance(feats_a, feats_b):
     """Fréchet distance between Gaussians fitted to two feature sets (Heusel et al., 2017).
 
@@ -98,9 +95,6 @@ def mode_coverage(pred_labels, num_classes, reference_labels, min_share=0.01):
     return {"modes_covered": int((p >= min_share).sum()), "class_kl": kl, "class_histogram": p.tolist()}
 
 
-# --------------------------------------------------------------------------- #
-# Image-level metrics (operate on images in [-1, 1])
-# --------------------------------------------------------------------------- #
 def _gray01(images):
     """(B, C, H, W) in [-1, 1] -> (B, 1, H, W) grayscale in [0, 1]."""
     x = (images.clamp(-1, 1) + 1) / 2
@@ -166,9 +160,6 @@ def nearest_neighbors(queries, reference, batch=500):
     return torch.cat(dists), torch.cat(idxs)
 
 
-# --------------------------------------------------------------------------- #
-# Latent space
-# --------------------------------------------------------------------------- #
 def slerp(z0, z1, t):
     """Spherical interpolation between latent batches z0, z1 (P, D) at times t (S,) -> (P, S, D).
 

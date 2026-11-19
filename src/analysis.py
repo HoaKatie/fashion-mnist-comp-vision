@@ -79,9 +79,6 @@ def _save(fig, path, written):
     written.append(path)
 
 
-# --------------------------------------------------------------------------- #
-# Loading
-# --------------------------------------------------------------------------- #
 def load_evals(runs_dir):
     rows = []
     for path in sorted(Path(runs_dir).glob("*/eval/epoch_*/metrics.json")):
@@ -100,9 +97,6 @@ def default_mask(df, latent_dim, beta):
     return (df["latent_dim"] == latent_dim) & ((df["model"] == "gan") | (df["beta"] == beta))
 
 
-# --------------------------------------------------------------------------- #
-# Tables
-# --------------------------------------------------------------------------- #
 def _fmt(values):
     values = values.dropna()
     if values.empty:
@@ -133,9 +127,6 @@ def write_markdown(table, path, title, note, written):
     written.append(path)
 
 
-# --------------------------------------------------------------------------- #
-# Figures
-# --------------------------------------------------------------------------- #
 def _present(df, models=MODELS):
     return [m for m in models if m in set(df["model"])]
 
@@ -324,7 +315,6 @@ def plot_ablation(df, x_key, panels, title, path, written, log_x=True):
     _save(fig, path, written)
 
 
-# --------------------------------------------------------------------------- #
 def parse_args():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--runs", default="runs")
@@ -353,7 +343,7 @@ def main():
         final.drop(columns=["class_histogram"]).to_csv(dout / "all_runs.csv", index=False)
         written.append(dout / "all_runs.csv")
 
-        # ---- Main comparison --------------------------------------------- #
+        # Main comparison
         main_df = final[default_mask(final, default_z, default_beta)]
         baseline = load_baseline(args.runs, dataset)
         if not main_df.empty:
@@ -379,11 +369,11 @@ def main():
                 labels = None
             plot_mode_coverage(main_df, dout, labels, written)
 
-        # ---- Learning curve (quick evaluations of intermediate checkpoints) #
+        # Learning curve
         quick = ddf[ddf["quick"].astype(bool)]
         plot_learning_curve(quick[default_mask(quick, default_z, default_beta)], dout, written)
 
-        # ---- Ablations ----------------------------------------------------- #
+        # Ablations
         z_sweep = final[(final["model"] == "gan") | (final["beta"] == default_beta)]
         if z_sweep["latent_dim"].nunique() > 1:
             write_markdown(mean_std_table(z_sweep, ["model", "latent_dim"], list(METRIC_NAMES)),
