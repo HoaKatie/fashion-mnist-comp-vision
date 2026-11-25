@@ -1,48 +1,31 @@
-# VAE vs. GAN: Fidelity–Diversity Trade-off on Fashion-MNIST
+# VAE vs DCGAN on Fashion-MNIST
 
-COMP 4102 final project. We compare two generative models, a **Variational Autoencoder (VAE)**
-and a **Deep Convolutional GAN (DCGAN)**, on Fashion-MNIST.
+This is our COMP 4102 final project. We wanted to see how a VAE and a DCGAN compare on
+Fashion-MNIST, mainly which one makes sharper images and which one covers the dataset better.
 
-> **Research question.** With the *same* network architecture, latent size, data and training
-> budget, how do a VAE and a GAN trade off **fidelity / sharpness** against **diversity / mode
-> coverage**?
+To keep the comparison fair, both models are built from the same blocks. The VAE decoder is also
+the GAN generator, and the VAE encoder is also the GAN discriminator. They also get the same latent
+size, data and number of epochs, so the only things that change are the loss and the optimizer
+settings.
 
-| | Hypothesis | Evidence |
-|---|---|---|
-| **H1** | The GAN produces sharper samples and a lower FID. | FID, precision, Laplacian variance, high-frequency ratio |
-| **H2** | The VAE covers the data distribution better (higher recall, less mode collapse) and trains more stably. | recall, class histogram, variance over seeds, D(x)/D(G(z)) curves |
-| **H3** | The VAE has a smoother latent space. | interpolation figures, interpolation step CV |
+We started with three hypotheses:
 
-## Results at a glance
+1. The GAN makes sharper images. This turned out to be true.
+2. The VAE covers the data better and trains more stably. This was wrong, the GAN did better here too.
+3. The VAE has a smoother latent space. This was true, but the β ablation shows it is not that simple.
 
-Mean over 3 seeds. Full table: [results/main_results.md](results/main_results.md). All figures
-are in [`results/`](results/); start with `qualitative_samples.png` and `precision_recall.png`.
+## Results
 
-| | DCGAN | VAE | Real data |
+These are averages over 3 seeds. The full table is in [results/main_results.md](results/main_results.md),
+and the figures and ablation tables are in [results/](results/).
+
+| | DCGAN | VAE | Real images |
 |---|---|---|---|
 | FID, classifier features ↓ | **1.29** | 20.7 | 0.03 |
 | FID, Inception features ↓ | **13.3** | 56.9 | 2.4 |
 | Precision / recall, classifier features ↑ | **0.85 / 0.85** | 0.70 / 0.49 | 0.90 / 0.89 |
-| Sharpness: Laplacian variance (closest to real is best) | **0.146** | 0.038 | 0.150 |
-| Latent smoothness: interpolation CV ↓ | 0.69 | **0.51** | – |
-
-- **H1 supported.** DCGAN samples are as sharp as real images; VAE samples are blurry.
-- **H2 not supported.** The DCGAN also covers the data better and never mode-collapsed. The
-  VAE's blur costs it diversity as well as fidelity.
-- **H3 supported.** The VAE's latent space is smoother, with a caveat from the β ablation
-  ([results/ablation_beta.md](results/ablation_beta.md)).
-
-## Fair comparison by construction
-
-- **One architecture.** `ConvDecoder` is both the VAE decoder and the GAN generator, and
-  `ConvEncoder` is both the VAE encoder and the GAN discriminator
-  ([src/models/networks.py](src/models/networks.py)).
-- **One settings file.** Dataset, latent size, batch size, epochs and seed live in
-  [configs/shared.yaml](configs/shared.yaml) and are inherited by both model configs.
-- **One evaluation.** Both models are scored by the same script with the same latent vectors
-  (fixed `--eval-seed`).
-
-Only the training objective and the optimizer settings recommended by each model's paper differ.
+| Sharpness, Laplacian variance (closer to real is better) | **0.146** | 0.038 | 0.150 |
+| Interpolation CV, latent smoothness ↓ | 0.69 | **0.51** | – |
 
 ## Setup
 
@@ -52,108 +35,67 @@ source .venv/bin/activate          # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-The code runs on CUDA, Apple-silicon (MPS) or CPU and picks the device automatically.
-Fashion-MNIST (~30 MB) downloads on first use. The FID Inception weights (~100 MB) download on
-the first full evaluation.
+The code picks CUDA, Apple MPS or the CPU on its own. Fashion-MNIST (about 30 MB) is downloaded the
+first time you run anything, and the Inception weights for FID (about 100 MB) the first time you run
+a full evaluation.
 
-## Running everything: `run_all.py`
+## How to run
 
-```bash
-python run_all.py smoke             # ~1 min end-to-end check; writes runs_smoke/ and results_smoke/
-python run_all.py                   # the full pipeline behind results/: main + ablations + analysis
-```
-
-| Command | What it runs |
-|---|---|
-| `python run_all.py main` | evaluation classifier + real-data baseline (once), then VAE and DCGAN for seeds 0 1 2: train, evaluate, learning curve |
-| `python run_all.py main --seeds 1` | one seed only, e.g. to split the seeds across teammates (then merge the `runs/` folders) |
-| `python run_all.py ablation` | latent_dim 8 / 128 for both models and VAE β 0.5 / 4, seed 0 (run after `main`) |
-| `python run_all.py analysis` | rebuild the `results/` tables and figures from `runs/`, no training |
-| `python run_all.py smoke` | tiny runs of every step (~1 min), to check the setup before the long runs |
-
-Add `--dry-run` to any command to print its steps without running them, and `-h` for all options.
-On an Apple-silicon laptop (MPS), `main` takes about 1 hour and `ablation` about 45 min; on macOS,
-prefix long runs with `caffeinate -i` to keep the laptop awake.
-
-Teammates who split the seeds must all use the **same** evaluation classifier
-(`runs/classifier_fashion_mnist/`): copy it before running `main`, otherwise the classifier-space
-metrics are not comparable.
-
-Each step can also be run on its own. Every module takes the same `--config` / `--set` flags:
+Everything goes through `run_all.py`. We suggest running the smoke test first. It takes about a
+minute and checks that every step works.
 
 ```bash
-python -m src.train_classifier --config configs/classifier.yaml           # once per dataset
-python -m src.real_baseline                                                # real-vs-real reference row
-python -m src.train_vae --config configs/vae.yaml --set seed=1 beta=4
-python -m src.train_gan --config configs/gan.yaml --set seed=1 latent_dim=8
-python -m src.evaluate  --config configs/gan.yaml --set seed=1             # full metrics + figures
-python -m src.evaluate  --config configs/gan.yaml --set seed=1 --all-epochs --quick   # learning curve
-python -m src.analysis                                                     # runs/ -> results/
+python run_all.py smoke
+python run_all.py
 ```
 
-## Check our numbers without training
+The second command runs the whole project. If you only want one part, use `main` for the VAE vs
+DCGAN runs (seeds 0, 1 and 2, about an hour on an Apple-silicon MacBook), `ablation` for the latent
+size and β ablations, or `analysis` to rebuild `results/` from `runs/`. Adding `--dry-run` prints
+every command without running it, which is handy if you want to run one step by hand.
 
-`trained_models/` has our final seed-0 VAE, DCGAN and evaluation classifier (13 MB, same folders
-as `runs/`). Evaluating them takes under a minute, even on a CPU, and gives the seed-0 rows of
-`results/all_runs.csv` (not the 3-seed mean above):
+## Checking our numbers without training
+
+`trained_models/` has our final seed-0 models. These two commands take less than a minute and should
+give the same numbers as the seed-0 rows in `results/all_runs.csv`.
 
 ```bash
 python -m src.evaluate --config configs/vae.yaml --set output_dir=trained_models --feature-spaces classifier
 python -m src.evaluate --config configs/gan.yaml --set output_dir=trained_models --feature-spaces classifier
 ```
 
-Remove `--feature-spaces classifier` to also get the Inception metrics. `run_all.py main` replaces
-these files with the newly trained models.
+## A note on the VAE loss
 
-## Key design choice: the VAE loss
+In `src/losses.py` we sum the reconstruction error over all pixels instead of taking the mean. The mean would divide the error by the 1024 pixels but not the KL term, so the KL would end up about 1000 times stronger. That is like setting β to 1000, and the samples get a lot blurrier.
 
-`vae_loss` in [src/losses.py](src/losses.py) sums the squared error over the pixels of each
-image (a Gaussian decoder with fixed variance). It does not average it. Averaging would make
-the KL term about 1000× stronger (1024 pixels vs. 32 latent dimensions), which is a hidden
-β ≈ 1000 and makes the samples much blurrier. With the sum, `beta` is the only weight on the
-KL.
-
-## Outputs
-
-| Path | Content |
-|---|---|
-| `results/main_results.md` | main table, mean ± std over seeds, with the real-data reference row |
-| `results/ablation_latent_dim.md`, `results/ablation_beta.md` | ablation tables |
-| `results/all_runs.csv` | every final metric of every run |
-| `results/*.png` | precision–recall, mode coverage, sharpness, learning and training curves, ablations, qualitative grids |
-| `trained_models/` | final seed-0 checkpoints (committed), see above |
-| `runs/<run>/` | created locally when you train (not committed): config, loss log, per-epoch samples, `eval/` metrics and figures, checkpoints |
-
-## Repository layout
+## Code
 
 ```
-run_all.py          one command for the whole pipeline (see above)
-configs/            shared.yaml (fairness) + vae.yaml, gan.yaml, classifier.yaml
-src/
-  data.py           Fashion-MNIST -> 32x32 in [-1, 1]
-  models/           networks.py (shared blocks), vae.py, gan.py, classifier.py (evaluation only)
-  losses.py         VAE negative ELBO and GAN losses
-  train_vae.py, train_gan.py, train_classifier.py
-  metrics.py        FID, precision/recall, mode coverage, sharpness, PSNR, NN, latent smoothness
-  evaluate.py       all metrics + qualitative figures for one run
-  real_baseline.py  same metrics on real train vs. test images (best achievable scores)
-  analysis.py       aggregates all runs into tables and figures
-results/            tables + figures (created by src.analysis, then committed)
-trained_models/     final seed-0 VAE, DCGAN and classifier (copied from runs/ by run_all.py)
+run_all.py            runs the whole project
+configs/              shared.yaml (settings both models share) + vae, gan, classifier
+src/data.py           loads Fashion-MNIST as 32x32 images in [-1, 1]
+src/models/           networks.py (shared blocks), vae.py, gan.py, classifier.py (only for evaluation)
+src/losses.py         VAE loss and GAN losses
+src/train_*.py        training
+src/metrics.py        FID, precision/recall, sharpness, latent smoothness, ...
+src/evaluate.py       all metrics and figures for one run
+src/real_baseline.py  same metrics on real images, the best score we can hope for
+src/analysis.py       collects all runs into results/
+results/              tables and figures
+trained_models/       our final seed-0 models
 ```
 
 ## References
 
-- Kingma & Welling (2014). *Auto-Encoding Variational Bayes.* ICLR.
-- Goodfellow et al. (2014). *Generative Adversarial Nets.* NeurIPS.
-- Radford, Metz & Chintala (2016). *Unsupervised Representation Learning with Deep Convolutional GANs.* ICLR.
-- Kingma & Ba (2015). *Adam: A Method for Stochastic Optimization.* ICLR.
-- Higgins et al. (2017). *β-VAE: Learning Basic Visual Concepts with a Constrained Variational Framework.* ICLR.
-- Heusel et al. (2017). *GANs Trained by a Two Time-Scale Update Rule Converge to a Local Nash Equilibrium* (FID). NeurIPS.
-- Szegedy et al. (2016). *Rethinking the Inception Architecture for Computer Vision* (Inception-v3, the network behind FID). CVPR.
-- Kynkäänniemi et al. (2019). *Improved Precision and Recall Metric for Assessing Generative Models.* NeurIPS.
-- Pech-Pacheco et al. (2000). *Diatom autofocusing in brightfield microscopy: a comparative study* (variance of Laplacian). ICPR.
-- White (2016). *Sampling Generative Networks* (slerp).
-- Karras et al. (2019). *A Style-Based Generator Architecture for GANs* (perceptual path length). CVPR.
-- Xiao, Rasul & Vollgraf (2017). *Fashion-MNIST.* arXiv:1708.07747.
-- torchmetrics / torch-fidelity for the FID Inception-v3 network.
+- Kingma & Welling (2014). Auto-Encoding Variational Bayes
+- Goodfellow et al. (2014). Generative Adversarial Nets
+- Radford et al. (2016). Unsupervised Representation Learning with Deep Convolutional GANs
+- Kingma & Ba (2015). Adam: A Method for Stochastic Optimization
+- Higgins et al. (2017). β-VAE: Learning Basic Visual Concepts with a Constrained Variational Framework
+- Heusel et al. (2017). GANs Trained by a Two Time-Scale Update Rule Converge to a Local Nash Equilibrium (FID)
+- Szegedy et al. (2016). Rethinking the Inception Architecture for Computer Vision (Inception-v3)
+- Kynkäänniemi et al. (2019). Improved Precision and Recall Metric for Assessing Generative Models
+- Pech-Pacheco et al. (2000). Diatom Autofocusing in Brightfield Microscopy (Laplacian variance)
+- White (2016). Sampling Generative Networks (slerp)
+- Karras et al. (2019). A Style-Based Generator Architecture for GANs (perceptual path length)
+- Xiao et al. (2017). Fashion-MNIST: a Novel Image Dataset for Benchmarking Machine Learning Algorithms
