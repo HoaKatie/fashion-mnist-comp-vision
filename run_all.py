@@ -1,18 +1,5 @@
-"""One command for the whole VAE vs DCGAN pipeline.
-
-    python run_all.py                     # everything behind results/: main + ablations + analysis
-    python run_all.py main                # VAE vs DCGAN at the default settings, seeds 0 1 2 (H1-H3)
-    python run_all.py main --seeds 1      # one seed, e.g. to split the seeds across teammates
-    python run_all.py ablation            # latent_dim 8/128 (both models), VAE beta 0.5/4, seed 0
-    python run_all.py analysis            # rebuild results/ from runs/, no training
-    python run_all.py smoke               # ~1 min end-to-end check in runs_smoke/ and results_smoke/
-
-Add --dry-run to any command to print its steps without running them.
-
-Every step is a `python -m src.<module> --config ... --set ...` call, run in a fresh process with
-the Python that runs this file (so activate the virtual environment first). A failing step stops
-the whole run.
-"""
+"""Run the whole pipeline. Choose one command: all (default), main, ablation, analysis or smoke
+Add --dry-run to print the steps without running them"""
 import argparse
 import shlex
 import shutil
@@ -26,9 +13,8 @@ MAIN_SEEDS = [0, 1, 2]
 ABLATION_SEEDS = [0]
 DRY_RUN = False
 
-
 def step(module, *args):
-    """Run `python -m src.<module> <args>` from the repo root and stop everything if it fails."""
+    """Run `python -m src.<module> <args>` from the repo root and stop everything if it fails"""
     cmd = [sys.executable, "-m", f"src.{module}", *map(str, args)]
     print("$ " + shlex.join(["python", *cmd[1:]]), flush=True)
     if DRY_RUN:
@@ -37,21 +23,18 @@ def step(module, *args):
     if result.returncode != 0:
         sys.exit(f"\nStep failed (exit code {result.returncode}): {shlex.join(['python', *cmd[1:]])}")
 
-
 def remove(path):
     print(f"$ rm -rf {path.relative_to(ROOT)}", flush=True)
     if not DRY_RUN:
         shutil.rmtree(path, ignore_errors=True)
 
-
 def dataset_name():
     from src.config import load_config
     return load_config(ROOT / "configs" / "shared.yaml")["dataset"]
 
-
 def refresh_demo_checkpoints(seeds):
     """Copy the final seed-0 VAE and GAN and the classifier into demo/checkpoints/, so the Q&A demo
-    shows the newest models. Skipped when seed 0 was not trained or there is no demo/ folder."""
+    shows the newest models. Skipped when seed 0 was not trained or there is no demo/ folder"""
     demo = ROOT / "demo" / "checkpoints"
     if 0 not in seeds or not demo.parent.is_dir():
         return
@@ -69,22 +52,20 @@ def refresh_demo_checkpoints(seeds):
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(source, target)
 
-
 def run_main(seeds):
-    """Main experiment: VAE vs DCGAN with the shared default settings, one run per seed."""
+    """Main experiment: VAE vs DCGAN with the shared default settings, one run per seed"""
     runs = ROOT / "runs"
     dataset = dataset_name()
     classifier = runs / f"classifier_{dataset}" / "classifier.pt"
     baseline = runs / f"real_baseline_{dataset}" / "metrics.json"
 
-    # The evaluation classifier is trained once and shared by every evaluation. Teammates who split
-    # the seeds must all copy the SAME runs/classifier_<dataset>/ folder before running this,
-    # otherwise their classifier-space metrics are not comparable.
+    # The classifier is trained once and used by every evaluation. If you split the seeds between
+    # teammates, give everyone the same runs/classifier_<dataset>/ folder, or the numbers won't match
     new_classifier = not classifier.is_file()
     if new_classifier:
         step("train_classifier", "--config", "configs/classifier.yaml")
         remove(baseline.parent)  # it was computed with the previous classifier
-    # Real-vs-real reference row for the main table (the best score a perfect generator could get).
+    # Reference row: the same metrics on real images (the best a generator could score)
     if new_classifier or not baseline.is_file():
         step("real_baseline")
 
@@ -96,10 +77,9 @@ def run_main(seeds):
             step("evaluate", "--config", config, "--set", f"seed={seed}", "--all-epochs", "--quick")  # learning curve
     refresh_demo_checkpoints(seeds)
 
-
 def run_ablation(seeds):
     """Ablations (run after `main`, which provides latent_dim=32 / beta=1 and the classifier):
-    latent dimension 8 / 128 for both models, and beta 0.5 / 4 for the VAE."""
+    latent dimension 8 / 128 for both models, and beta 0.5 / 4 for the VAE"""
     for seed in seeds:
         for z in [8, 128]:
             for model in MODELS:
@@ -110,10 +90,9 @@ def run_ablation(seeds):
             step("train_vae", "--config", "configs/vae.yaml", "--set", f"beta={beta}", f"seed={seed}")
             step("evaluate", "--config", "configs/vae.yaml", "--set", f"beta={beta}", f"seed={seed}")
 
-
 def run_smoke():
     """Tiny runs written to runs_smoke/ and results_smoke/, so real results are never touched.
-    The metric VALUES are meaningless here: this only checks that every step runs."""
+    The metric VALUES are meaningless here: this only checks that every step runs"""
     out = "output_dir=runs_smoke"
     step("train_classifier", "--config", "configs/classifier.yaml", "--set", out, "subset=10000", "epochs=1")
     step("real_baseline", "--set", out, "--n-samples", "1000", "--feature-spaces", "classifier")
@@ -123,7 +102,6 @@ def run_smoke():
         step("evaluate", "--config", config, "--set", out, "--n-samples", "1000", "--feature-spaces", "classifier")
         step("evaluate", "--config", config, "--set", out, "--all-epochs", "--quick")
     step("analysis", "--runs", "runs_smoke", "--out", "results_smoke")
-
 
 def parse_args():
     common = argparse.ArgumentParser(add_help=False)
@@ -150,7 +128,6 @@ def parse_args():
         args = parser.parse_args(["all", *sys.argv[1:]])
     return args
 
-
 def main():
     global DRY_RUN
     args = parse_args()
@@ -173,7 +150,6 @@ def main():
         run_smoke()
         if not DRY_RUN:
             print("Smoke test passed. Look at results_smoke/ and runs_smoke/*/eval/.")
-
 
 if __name__ == "__main__":
     try:

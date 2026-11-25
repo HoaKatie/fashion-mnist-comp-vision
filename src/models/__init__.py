@@ -1,4 +1,4 @@
-"""Model construction and checkpoint I/O."""
+"""Model construction and checkpoint I/O"""
 from pathlib import Path
 
 import torch
@@ -11,7 +11,6 @@ from src.models.vae import VAE
 
 __all__ = ["VAE", "GAN", "EvalClassifier", "build_model", "save_checkpoint", "load_checkpoint", "load_classifier"]
 
-
 def build_model(cfg):
     channels = dataset_info(cfg["dataset"])["channels"]
     if cfg["model"] == "vae":
@@ -20,16 +19,14 @@ def build_model(cfg):
         return GAN(cfg["latent_dim"], channels, cfg["base_channels"])
     raise ValueError(f"Unknown generative model {cfg['model']!r}")
 
-
 def save_checkpoint(path, model, cfg, epoch, train_time_sec):
     torch.save(
         {"state_dict": model.state_dict(), "config": cfg, "epoch": epoch, "train_time_sec": train_time_sec},
         path,
     )
 
-
 def load_checkpoint(path, device):
-    """Returns (model in eval mode, config, metadata)."""
+    """Returns (model in eval mode, config, metadata)"""
     ckpt = torch.load(path, map_location=device, weights_only=True)
     cfg = ckpt["config"]
     model = build_model(cfg).to(device)
@@ -44,13 +41,11 @@ def load_checkpoint(path, device):
     }
     return model, cfg, meta
 
-
 def classifier_path(dataset, output_dir):
     return Path(output_dir) / f"classifier_{dataset}" / "classifier.pt"
 
-
 def load_classifier(dataset, output_dir, device):
-    """Returns (classifier in eval mode, its test accuracy)."""
+    """Returns (classifier in eval mode, its test accuracy)"""
     path = classifier_path(dataset, output_dir)
     if not path.exists():
         raise SystemExit(

@@ -1,7 +1,6 @@
 # Q&A demo: VAE vs DCGAN in 7 steps
 
-A small window that walks through the whole project with the trained models, for when our
-group is called up in the Q&A. **Not part of the submission: delete `demo/` before zipping.**
+A small window that walks through the whole project with the trained models
 
 ## Run it
 

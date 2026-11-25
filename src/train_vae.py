@@ -1,20 +1,7 @@
-"""Train a VAE (or beta-VAE) with the shared convolutional architecture.
-
-Usage:
-    python -m src.train_vae --config configs/vae.yaml
-    python -m src.train_vae --config configs/vae.yaml --set seed=1 beta=4 latent_dim=8
-
-Outputs (runs/<run_name>/):
-    config.yaml        exact settings used
-    train_log.csv      per-epoch loss / recon / kl / elapsed time
-    samples/           sample grid from FIXED latent vectors after every epoch
-    checkpoints/       model every `save_every` epochs (for learning curves)
-"""
+"""Train a VAE with the shared architecture: python -m src.train_vae --config configs/vae.yaml"""
 import argparse
 import time
-
 import torch
-
 from src.config import load_config
 from src.data import get_loader
 from src.losses import vae_loss
@@ -22,13 +9,11 @@ from src.models import build_model, save_checkpoint
 from src.models.networks import count_parameters, init_dcgan_weights
 from src.utils import append_csv, fixed_noise, get_device, prepare_run_dir, save_grid, set_seed
 
-
 def parse_args():
     parser = argparse.ArgumentParser(description="Train a VAE")
     parser.add_argument("--config", default="configs/vae.yaml")
     parser.add_argument("--set", nargs="*", default=[], metavar="KEY=VALUE", help="override config values")
     return parser.parse_args()
-
 
 def train(cfg):
     set_seed(cfg["seed"])
@@ -72,14 +57,12 @@ def train(cfg):
             save_checkpoint(run_dir / "checkpoints" / f"epoch_{epoch:03d}.pt", model, cfg, epoch, elapsed)
     return run_dir
 
-
 def main():
     args = parse_args()
     cfg = load_config(args.config, args.set)
     if cfg["model"] != "vae":
         raise SystemExit(f"{args.config} is a '{cfg['model']}' config, expected 'vae'")
     train(cfg)
-
 
 if __name__ == "__main__":
     main()

@@ -1,18 +1,8 @@
-"""Shared convolutional building blocks (DCGAN-style, Radford et al., 2016).
-
-    ConvDecoder  = VAE decoder   = GAN generator
-    ConvEncoder  = VAE encoder   = GAN discriminator   (only the output size differs)
-
-Because both generative models use exactly the same image-producing network,
-differences in our results can be attributed to the TRAINING OBJECTIVE
-(ELBO vs. adversarial loss) rather than to model capacity.
-tests/test_models.py checks this.
-"""
+"""Shared blocks: ConvDecoder = VAE decoder = GAN generator, ConvEncoder = VAE encoder = GAN discriminator"""
 import torch.nn as nn
 
-
 class ConvDecoder(nn.Module):
-    """z (B, latent_dim) -> image (B, C, 32, 32) with values in [-1, 1]."""
+    """z (B, latent_dim) -> image (B, C, 32, 32) with values in [-1, 1]"""
 
     def __init__(self, latent_dim, out_channels, base=64):
         super().__init__()
@@ -37,9 +27,8 @@ class ConvDecoder(nn.Module):
     def forward(self, z):
         return self.net(z.view(z.size(0), -1, 1, 1))
 
-
 class ConvEncoder(nn.Module):
-    """image (B, C, 32, 32) -> vector (B, out_dim)."""
+    """image (B, C, 32, 32) -> vector (B, out_dim)"""
 
     def __init__(self, in_channels, out_dim, base=64):
         super().__init__()
@@ -62,9 +51,8 @@ class ConvEncoder(nn.Module):
     def forward(self, x):
         return self.head(self.features(x)).flatten(1)
 
-
 def init_dcgan_weights(module):
-    """DCGAN initialisation, applied to BOTH models so neither gets a head start."""
+    """DCGAN initialisation, applied to BOTH models so neither gets a head start"""
     if isinstance(module, (nn.Conv2d, nn.ConvTranspose2d)):
         nn.init.normal_(module.weight, 0.0, 0.02)
         if module.bias is not None:
@@ -72,7 +60,6 @@ def init_dcgan_weights(module):
     elif isinstance(module, nn.BatchNorm2d):
         nn.init.normal_(module.weight, 1.0, 0.02)
         nn.init.zeros_(module.bias)
-
 
 def count_parameters(module):
     return sum(p.numel() for p in module.parameters())

@@ -1,27 +1,4 @@
-"""Aggregate every evaluation into report-ready tables and figures.
-
-Usage:
-    python -m src.analysis                        # reads runs/, writes results/
-    python -m src.analysis --runs runs --out results
-
-Tables (Markdown, mean ± std over seeds) and raw numbers (CSV):
-    all_runs.csv              final evaluation of every run (numeric, one row per run)
-    main_results.md           VAE vs DCGAN at the default configuration          (H1, H2, H3)
-    ablation_latent_dim.md    both models, different latent sizes
-    ablation_beta.md          VAE only, different beta
-Figures:
-    precision_recall.png      fidelity vs diversity, one dot per run             (H1, H2)
-    mode_coverage.png         class histogram of generated samples               (H2)
-    sharpness.png             Laplacian variance & high-frequency ratio vs real  (H1)
-    learning_curve.png        FID / recall over training  (needs `evaluate --all-epochs --quick`)
-    training_curves.png       losses and D outputs from train_log.csv
-    ablation_latent_dim.png, ablation_beta.png
-    qualitative_*.png         VAE and DCGAN evaluation grids side by side (samples, successes and
-                              failures, interpolation, nearest neighbours, reconstructions)
-
-If runs/real_baseline_<dataset>/metrics.json exists (`python -m src.real_baseline`), the main
-table gets a "Real data" row and the precision-recall plot a reference star.
-"""
+"""Collect every evaluation in runs/ into the tables and figures in results/"""
 import argparse
 import json
 from pathlib import Path
@@ -29,14 +6,14 @@ from pathlib import Path
 import matplotlib
 
 matplotlib.use("Agg")
-import matplotlib.pyplot as plt  # noqa: E402
-import numpy as np  # noqa: E402
-from matplotlib.ticker import MaxNLocator  # noqa: E402
-import pandas as pd  # noqa: E402
+import matplotlib.pyplot as plt
+import numpy as np
+from matplotlib.ticker import MaxNLocator
+import pandas as pd
 
-from src.config import load_config  # noqa: E402
+from src.config import load_config
 
-# Validated categorical palette: slot 1 (blue) and slot 2 (orange). Real data = neutral gray.
+# VAE blue, DCGAN orange, real data gray
 COLORS = {"vae": "#2a78d6", "gan": "#eb6834"}
 LABELS = {"vae": "VAE", "gan": "DCGAN"}
 MODELS = ["vae", "gan"]
@@ -59,7 +36,6 @@ METRIC_NAMES = {
     "train_time_sec": "Train time (s)",
 }
 
-
 def _style():
     plt.rcParams.update({
         "figure.dpi": 150, "savefig.dpi": 200, "savefig.bbox": "tight",
@@ -72,12 +48,10 @@ def _style():
         "legend.frameon": False, "lines.linewidth": 2, "lines.markersize": 6,
     })
 
-
 def _save(fig, path, written):
     fig.savefig(path)
     plt.close(fig)
     written.append(path)
-
 
 def load_evals(runs_dir):
     rows = []
@@ -86,16 +60,13 @@ def load_evals(runs_dir):
             rows.append(json.load(f))
     return pd.DataFrame(rows)
 
-
 def final_full_evals(df):
-    """The last full (non --quick) evaluation of every run."""
+    """The last full (non --quick) evaluation of every run"""
     full = df[~df["quick"].astype(bool)]
     return full.loc[full.groupby("run")["epoch"].idxmax()].reset_index(drop=True)
 
-
 def default_mask(df, latent_dim, beta):
     return (df["latent_dim"] == latent_dim) & ((df["model"] == "gan") | (df["beta"] == beta))
-
 
 def _fmt(values):
     values = values.dropna()
@@ -104,7 +75,6 @@ def _fmt(values):
     if len(values) == 1:
         return f"{values.iloc[0]:.3g}"
     return f"{values.mean():.3g} ± {values.std(ddof=1):.2g}"
-
 
 def mean_std_table(df, group_cols, metrics):
     rows = []
@@ -117,7 +87,6 @@ def mean_std_table(df, group_cols, metrics):
         rows.append(row)
     return pd.DataFrame(rows)
 
-
 def write_markdown(table, path, title, note, written):
     lines = [f"# {title}", "", note, "",
              "| " + " | ".join(map(str, table.columns)) + " |",
@@ -126,10 +95,8 @@ def write_markdown(table, path, title, note, written):
     path.write_text("\n".join(lines) + "\n")
     written.append(path)
 
-
 def _present(df, models=MODELS):
     return [m for m in models if m in set(df["model"])]
-
 
 def plot_precision_recall(main, out, written, baseline=None):
     spaces = [s for s in ("classifier", "inception")
@@ -149,7 +116,6 @@ def plot_precision_recall(main, out, written, baseline=None):
     axes[0][0].set_ylabel("Precision (fidelity)")
     axes[0][-1].legend(loc="lower right")
     _save(fig, out / "precision_recall.png", written)
-
 
 def plot_mode_coverage(main, out, class_labels, written):
     models = _present(main)
@@ -171,7 +137,6 @@ def plot_mode_coverage(main, out, class_labels, written):
     ax.set_ylim(0, max(1.15 * max(h.max() for h in hists.values()), 0.2))  # room for the legend
     _save(fig, out / "mode_coverage.png", written)
 
-
 def plot_sharpness(main, out, written):
     models = _present(main)
     fig, axes = plt.subplots(1, 2, figsize=(6.4, 2.8))
@@ -187,7 +152,6 @@ def plot_sharpness(main, out, written):
     axes[0].legend(loc="upper left")
     fig.suptitle("Sharpness of generated images (higher = more fine detail)", fontsize=10)
     _save(fig, out / "sharpness.png", written)
-
 
 def plot_learning_curve(curve, out, written):
     if curve.empty:
@@ -205,7 +169,6 @@ def plot_learning_curve(curve, out, written):
     axes[0].legend()
     fig.suptitle("Quality during training (line = mean over seeds, band = min–max)", fontsize=10)
     _save(fig, out / "learning_curve.png", written)
-
 
 def plot_training_curves(runs_dir, main, out, written):
     logs = {}
@@ -239,7 +202,6 @@ def plot_training_curves(runs_dir, main, out, written):
     fig.suptitle("Training dynamics (one line per seed)", fontsize=10)
     _save(fig, out / "training_curves.png", written)
 
-
 QUALITATIVE_FIGURES = {
     # output file: [(figure saved by src.evaluate, panel caption), ...]  -> one row per entry
     "qualitative_samples.png": [("samples.png", "random samples")],
@@ -250,13 +212,8 @@ QUALITATIVE_FIGURES = {
     "qualitative_reconstructions.png": [("reconstructions.png", "test image (top) vs. reconstruction (bottom)")],
 }
 
-
 def plot_qualitative(runs_dir, main, out, written, panel_width=3.4):
-    """Put the evaluation figures of both models side by side (lowest seed of each model).
-
-    runs/ is git-ignored, so this is how the qualitative figures reach results/ and the report.
-    The grids come from fixed latent vectors (--eval-seed), so they are NOT cherry-picked.
-    """
+    """Put both models' evaluation grids side by side. They use fixed z, so they are not cherry-picked"""
     picks = {}
     for model in _present(main):
         row = main[main["model"] == model].sort_values("seed").iloc[0]
@@ -279,7 +236,6 @@ def plot_qualitative(runs_dir, main, out, written, panel_width=3.4):
                 ax.set_title(f"{LABELS[model]} (seed {picks[model][1]}): {caption}", fontsize=8)
         _save(fig, out / name, written)
 
-
 def load_baseline(runs_dir, dataset):
     path = Path(runs_dir) / f"real_baseline_{dataset}" / "metrics.json"
     if not path.exists():
@@ -287,13 +243,11 @@ def load_baseline(runs_dir, dataset):
     with open(path) as f:
         return json.load(f)
 
-
 def baseline_row(baseline, metrics):
     row = {"model": "Real data (train vs. test)", "seeds": "–"}
     for metric in metrics:
         row[METRIC_NAMES.get(metric, metric)] = f"{baseline[metric]:.3g}" if metric in baseline else "–"
     return row
-
 
 def plot_ablation(df, x_key, panels, title, path, written, log_x=True):
     models = _present(df)
@@ -314,14 +268,12 @@ def plot_ablation(df, x_key, panels, title, path, written, log_x=True):
     fig.suptitle(title, fontsize=10)
     _save(fig, path, written)
 
-
 def parse_args():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--runs", default="runs")
     parser.add_argument("--out", default="results")
     parser.add_argument("--configs", default="configs", help="used to find the default latent_dim / beta")
     return parser.parse_args()
-
 
 def main():
     args = parse_args()
@@ -397,7 +349,6 @@ def main():
     print("Wrote:")
     for path in written:
         print(f"  {path}")
-
 
 if __name__ == "__main__":
     main()

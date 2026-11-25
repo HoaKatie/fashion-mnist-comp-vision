@@ -1,5 +1,4 @@
-"""Train the evaluation-only classifier (run once per dataset, before src.evaluate).
-
+"""Train the evaluation-only classifier (run once per dataset, before src.evaluate)
 Usage:
     python -m src.train_classifier --config configs/classifier.yaml
 """
@@ -13,13 +12,11 @@ from src.data import dataset_info, get_loader, load_split
 from src.models import EvalClassifier
 from src.utils import get_device, run_dir_for, save_json, set_seed
 
-
 def parse_args():
     parser = argparse.ArgumentParser(description="Train the evaluation classifier")
     parser.add_argument("--config", default="configs/classifier.yaml")
     parser.add_argument("--set", nargs="*", default=[], metavar="KEY=VALUE", help="override config values")
     return parser.parse_args()
-
 
 @torch.no_grad()
 def accuracy(model, images, labels, device, batch=1000):
@@ -28,7 +25,6 @@ def accuracy(model, images, labels, device, batch=1000):
     for x, y in zip(images.split(batch), labels.split(batch)):
         correct += (model(x.to(device)).argmax(1).cpu() == y).sum().item()
     return correct / len(labels)
-
 
 def main():
     args = parse_args()
@@ -59,7 +55,6 @@ def main():
     torch.save({"state_dict": model.state_dict(), "test_accuracy": acc}, out_dir / "classifier.pt")
     save_json({"dataset": cfg["dataset"], "epochs": cfg["epochs"], "test_accuracy": acc}, out_dir / "metrics.json")
     print(f"Saved to {out_dir}")
-
 
 if __name__ == "__main__":
     main()

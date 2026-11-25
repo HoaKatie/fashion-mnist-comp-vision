@@ -1,19 +1,4 @@
-"""Evaluate a trained VAE or GAN.
-
-Uses the same --config / --set flags as training, so the run directory is found
-automatically:
-    python -m src.evaluate --config configs/gan.yaml --set seed=1
-    python -m src.evaluate --config configs/vae.yaml --all-epochs --quick     # learning curve
-
-Writes runs/<run>/eval/epoch_XXX/metrics.json (or epoch_XXX_quick/ with --quick), plus these
-figures (unless --quick):
-    samples.png            64 random samples from a fixed seed (NOT cherry-picked)
-    most_confident.png     samples the evaluation classifier is most sure about   (successes)
-    least_confident.png    samples the evaluation classifier is least sure about  (failure cases)
-    interpolation.png      slerp between random latent pairs, one pair per row
-    nearest_neighbors.png  top row: generated sample, bottom row: closest TRAINING image
-    reconstructions.png    VAE only. Top row: real test image, bottom row: reconstruction
-"""
+"""Evaluate a trained VAE or GAN: compute the metrics and save the figures to runs/<run>/eval/"""
 import argparse
 import time
 from pathlib import Path
@@ -26,10 +11,9 @@ from src.data import dataset_info, load_split
 from src.models import load_checkpoint, load_classifier
 from src.utils import get_device, run_dir_for, run_name, save_grid, save_json
 
-QUICK_SAMPLES = 5000      # --quick: fewer samples, classifier feature space only, no figures
-N_MEMORIZATION = 1000     # generated / test images checked against the whole training set
+QUICK_SAMPLES = 5000      # --quick is for the learning curve: 5,000 images, classifier metrics only, will have no figures
+N_MEMORIZATION = 1000     # images used for the memorisation check (compared with the whole training set)
 N_PATHS, N_STEPS = 100, 10
-
 
 def parse_args():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -37,28 +21,25 @@ def parse_args():
     parser.add_argument("--set", nargs="*", default=[], metavar="KEY=VALUE", help="same overrides as training")
     parser.add_argument("--epoch", type=int, default=None, help="checkpoint epoch to evaluate (default: last)")
     parser.add_argument("--all-epochs", action="store_true", help="evaluate every saved checkpoint")
-    parser.add_argument("--quick", action="store_true", help=f"{QUICK_SAMPLES} samples, classifier features only, no figures")
+    parser.add_argument("--quick", action="store_true", help=f"for the learning curve: {QUICK_SAMPLES} images, classifier metrics only, no figures")
     parser.add_argument("--n-samples", type=int, default=10000, help="capped at the test-set size")
     parser.add_argument("--feature-spaces", nargs="+", default=["classifier", "inception"],
                         choices=["classifier", "inception"])
     parser.add_argument("--eval-seed", type=int, default=0, help="seed for the latent vectors used in evaluation")
     return parser.parse_args()
 
-
 @torch.no_grad()
 def batched(fn, x, device, batch=500):
-    """Apply fn to x in mini-batches on `device`; results are gathered on the CPU."""
+    """Apply fn to x in mini-batches on `device`; results are gathered on the CPU"""
     return torch.cat([fn(chunk.to(device)).cpu() for chunk in x.split(batch)])
-
 
 @torch.no_grad()
 def generate(model, n, latent_dim, device, seed):
     z = torch.randn(n, latent_dim, generator=torch.Generator().manual_seed(seed))
     return batched(model.decode, z, device)
 
-
 class InceptionFeatures:
-    """2048-d pool features of the standard FID Inception-v3 (weights via torchmetrics / torch-fidelity)."""
+    """2048-d pool features of the standard FID Inception-v3 (weights via torchmetrics / torch-fidelity)"""
 
     def __init__(self, device):
         from torchmetrics.image.fid import NoTrainInceptionV3
@@ -70,9 +51,8 @@ class InceptionFeatures:
             x = x.repeat(1, 3, 1, 1)  # grayscale -> RGB
         return self.net((x * 255).round().to(torch.uint8)).float()
 
-
 class Evaluator:
-    """Everything shared across checkpoints: real data, the evaluation classifier, real-image features."""
+    """Everything shared across checkpoints: real data, the evaluation classifier, real-image features"""
 
     def __init__(self, cfg, args, device):
         self.cfg, self.args, self.device = cfg, args, device
@@ -95,7 +75,7 @@ class Evaluator:
         return self._extractors[space]
 
     def real_features(self, space, n):
-        """Features of the first n real test images (Inception features are cached on disk)."""
+        """Features of the first n real test images (Inception features are cached on disk)"""
         if (space, n) not in self._real_feats:
             cache = Path(self.cfg["output_dir"]) / "cache" / f"{space}_{self.cfg['dataset']}_test{n}.pt"
             if space == "inception" and cache.exists():
@@ -121,7 +101,7 @@ class Evaluator:
         args, quick = self.args, self.args.quick
         model, cfg, meta = load_checkpoint(ckpt_path, self.device)
         n = min(QUICK_SAMPLES if quick else args.n_samples, len(self.test_x))
-        # Quick (learning-curve) evaluations get their own folder so they never overwrite a full one.
+        # Quick (learning-curve) evaluations get their own folder so they will not overwrite a full one
         out_dir = Path(ckpt_path).parent.parent / "eval" / (f"epoch_{meta['epoch']:03d}" + ("_quick" if quick else ""))
         start = time.time()
 
@@ -133,31 +113,31 @@ class Evaluator:
             **meta, "n_samples": n, "quick": quick, "eval_classifier_accuracy": self.classifier_acc,
         }
 
-        # 1. Fidelity & diversity in feature space(s)                                   (H1, H2)
+        # 1. Fidelity & diversity in feature space(s) (for H1, H2)
         for space in (["classifier"] if quick else args.feature_spaces):
             f_real = self.real_features(space, n)
             f_fake = batched(self.extractor(space), fake, self.device)
             res[f"fid_{space}"] = M.frechet_distance(f_real.numpy(), f_fake.numpy())
             res[f"precision_{space}"], res[f"recall_{space}"] = M.precision_recall(f_real, f_fake)
 
-        # 2. Mode coverage, using the evaluation classifier                              (H2)
+        # 2. Mode coverage, using the evaluation classifier (for H2)
         probs = batched(self.classifier, fake, self.device).softmax(dim=1)
         confidence, pred = probs.max(dim=1)
         res.update(M.mode_coverage(pred.numpy(), self.num_classes, self.test_y.numpy()))
         res["mean_confidence"] = confidence.mean().item()
 
-        # 3. Sharpness, with real images as the reference                               (H1)
+        # 3. Sharpness, with real images as the reference (for H1)
         res["laplacian_var"] = M.laplacian_variance(fake).mean().item()
         res["laplacian_var_real"] = M.laplacian_variance(real).mean().item()
         res["hf_ratio"] = M.high_frequency_ratio(fake).mean().item()
         res["hf_ratio_real"] = M.high_frequency_ratio(real).mean().item()
 
-        # 4. Latent space smoothness                                                     (H3)
+        # 4. Latent space smoothness (for H3)
         paths = self.interpolation_paths(model, cfg["latent_dim"])
         path_feats = batched(self.classifier.embed, paths.flatten(0, 1), self.device)
         res["interp_step_cv"] = M.path_smoothness(path_feats.view(N_PATHS, N_STEPS, -1))
 
-        # 5. Reconstruction -- VAE only (a GAN has no encoder; state this as a limitation)
+        # 5. Reconstruction, VAE only (a GAN has no encoder)
         recon = None
         if cfg["model"] == "vae":
             recon = batched(model.reconstruct, real, self.device)
@@ -165,7 +145,7 @@ class Evaluator:
             res["recon_psnr"] = M.psnr(recon, real).mean().item()
 
         if not quick:
-            # 6. Memorisation: generated->train distance vs. unseen test->train distance
+            # 6. Memorisation: are generated images closer to the training set than unseen test images?
             d_fake, nn_idx = M.nearest_neighbors(fake[:N_MEMORIZATION], self.train_x)
             d_test, _ = M.nearest_neighbors(self.test_x[:N_MEMORIZATION], self.train_x)
             res["nn_dist_generated"] = d_fake.median().item()
@@ -204,7 +184,6 @@ class Evaluator:
                 print(f"  {key:22s} {value:.4f}" if isinstance(value, float) else f"  {key:22s} {value}")
         print(f"  -> {out_dir / 'metrics.json'}")
 
-
 def main():
     args = parse_args()
     cfg = load_config(args.config, args.set)
@@ -224,7 +203,6 @@ def main():
     evaluator = Evaluator(cfg, args, device)
     for ckpt in selected:
         evaluator.evaluate(ckpt)
-
 
 if __name__ == "__main__":
     main()

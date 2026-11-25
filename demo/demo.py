@@ -47,7 +47,7 @@ CAPTIONS = [
 ]
 
 def load_context(ckpt_dir=CKPT_DIR):
-    """Load both generators, the evaluation classifier and the real test set, once at start."""
+    """Load both generators, the evaluation classifier and the real test set, once at start"""
     ckpt_dir = Path(ckpt_dir)
     for path in (ckpt_dir / "vae.pt", ckpt_dir / "gan.pt", ckpt_dir / "classifier_fashion_mnist" / "classifier.pt"):
         if not path.is_file():
@@ -65,23 +65,22 @@ def load_context(ckpt_dir=CKPT_DIR):
             "real_x": real_x, "real_y": real_y}
 
 def sharpness(images):
-    """Mean Laplacian variance (edge strength). Blurry images -> low value."""
+    """Mean Laplacian variance (edge strength). Blurry images -> low value"""
     return laplacian_variance(images).mean().item()
 
 def class_shares(clf, images):
-    """Fraction of the images that the classifier puts in each of the 10 classes."""
+    """Fraction of the images that the classifier puts in each of the 10 classes"""
     labels = batched(clf, images, DEVICE).argmax(dim=1)
     return torch.bincount(labels, minlength=10).float() / len(labels)
 
 @torch.no_grad()
 def interpolate(model, z_dim, seed, steps=N_INTERP):
-    """Decode `steps` points on the spherical path between two random latent vectors."""
+    """Decode `steps` points on the spherical path between two random latent vectors"""
     z0, z1 = torch.randn(2, 1, z_dim, generator=torch.Generator().manual_seed(seed))
     return model.decode(slerp(z0, z1, torch.linspace(0, 1, steps))[0])
 
-
 def main_results(csv_path=RESULTS_CSV):
-    """Mean over seeds of the main runs (z = 32, VAE beta = 1), the numbers of results/main_results.md."""
+    """Mean over seeds of the main runs (z = 32, VAE beta = 1), the numbers of results/main_results.md"""
     df = pd.read_csv(csv_path)
     df = df[(df.latent_dim == 32) & ((df.model == "gan") | (df.beta == 1))]
     cols = ["fid_classifier", "precision_classifier", "recall_classifier",
@@ -90,9 +89,8 @@ def main_results(csv_path=RESULTS_CSV):
     table["n_seeds"] = df.groupby("model").seed.nunique()
     return table.rename(index={"vae": "VAE", "gan": "DCGAN"}).loc[["VAE", "DCGAN"]]
 
-
 def hypotheses(df):
-    """(name, claim, supported?) for H1-H3, decided from the numbers rather than typed in."""
+    """(name, claim, supported?) for H1-H3, decided from the numbers rather than typed in"""
     vae, gan = df.loc["VAE"], df.loc["DCGAN"]
     real = gan.laplacian_var_real
     return [
@@ -103,16 +101,14 @@ def hypotheses(df):
         ("H3", "VAE: smoother latent space (lower interp. CV)", bool(vae.interp_step_cv < gan.interp_step_cv)),
     ]
 
-
-# ----------------------------------------------------------------------------- the 6 steps
+# The 7 steps of the demo
 def show(ax, images, nrow=1, title="", padding=2):
-    """Draw images in [-1, 1] as one grid. Nearest-neighbour scaling, so blur is the model's, not ours."""
+    """Draw images in [-1, 1] as one grid. Nearest-neighbour scaling, so blur is the model's, not ours"""
     grid = make_grid(to_unit_range(images), nrow=nrow, padding=padding, pad_value=1.0)
     ax.imshow(grid[0], cmap="gray", vmin=0, vmax=1, interpolation="nearest")
     ax.set_title(title, fontsize=10)
     ax.set_xticks([])
     ax.set_yticks([])
-
 
 def step_dataset(fig, ctx, seed):
     axes = fig.subplots(4, 10, gridspec_kw={"wspace": 0.05, "hspace": 0.05})
@@ -149,16 +145,14 @@ def step_setup(fig, ctx, seed):
             f"GAN = adversarial)\nand each paper's Adam settings (VAE lr {cfg['lr']:g} · GAN lr {gan['lr']:g}, "
             f"β1 {gan['adam_beta1']:g})", ha="center", fontsize=11)
 
-
 def step_training(fig, ctx, seed):
-    """The two training figures that `python -m src.analysis` saved in results/ (nothing is computed here)."""
+    """The two training figures that `python -m src.analysis` saved in results/ (nothing is computed here)"""
     fig.suptitle("run_all.py:  classifier  →  VAE + DCGAN × 3 seeds, 30 epochs  →  evaluate  →  analysis  →  results/",
                  fontsize=11)
     for box, name in (([0.0, 0.47, 1.0, 0.45], "training_curves.png"), ([0.14, 0.0, 0.72, 0.47], "learning_curve.png")):
         ax = fig.add_axes(box)
         ax.imshow(imread(ROOT / "results" / name))
         ax.axis("off")
-
 
 def step_sharpness(fig, ctx, seed):
     g = torch.Generator().manual_seed(seed)
@@ -174,7 +168,6 @@ def step_sharpness(fig, ctx, seed):
     fig.suptitle("First 16 samples of each model, not cherry-picked  ·  Laplacian variance = edge strength "
                  "(blurry → low, closest to real is best)", fontsize=11, y=0.99)
 
-
 def step_diversity(fig, ctx, seed):
     ax = fig.subplots()
     for offset, (name, key) in zip((-0.2, 0.2), MODELS):
@@ -186,7 +179,6 @@ def step_diversity(fig, ctx, seed):
     ax.set_title(f"Which class do {N_DIV:,} generated images look like? (evaluation classifier)")
     ax.legend()
     fig.subplots_adjust(bottom=0.2)
-
 
 def step_latent(fig, ctx, seed):
     axes = fig.subplots(2, N_INTERP, gridspec_kw={"wspace": 0.05, "hspace": 0.1})
@@ -226,7 +218,7 @@ STEPS = [("Dataset", step_dataset, False), ("Setup", step_setup, False),
          ("Conclusion", step_conclusion, False)]
 
 class Wizard:
-    """A Tk window around one matplotlib Figure. Back / Next walk through STEPS."""
+    """A Tk window around one matplotlib Figure. Back / Next walk through STEPS"""
 
     def __init__(self, root, ctx):
         self.root, self.ctx = root, ctx
@@ -262,7 +254,7 @@ class Wizard:
         self.back_button.pack(side="left")
         self.next_button = tk.Button(buttons, text="Next ▶", command=self.next)
         self.next_button.pack(side="right")
-        # Only on steps 4-6: draws new random images (next seed), to show the result is not a lucky draw.
+        # Only on steps 4-6: draws new random images (next seed), to show the result is not a lucky draw
         self.new_button = tk.Button(buttons, command=self.resample)
         root.bind("<Left>", lambda event: self.back())
         root.bind("<Right>", lambda event: self.next())
@@ -280,7 +272,7 @@ class Wizard:
             return
         self.busy, self.index = True, i
         _, draw, can_resample = STEPS[i]
-        # Labels and a placeholder first: the Diversity step takes a few seconds to draw.
+        # Labels and a placeholder first: the Diversity step takes a few seconds to draw
         self.counter.config(text=f"Step {i + 1} of {len(STEPS)}")
         for j, tab in enumerate(self.tabs):
             bg, fg = TAB_ON if j == i else TAB_OFF

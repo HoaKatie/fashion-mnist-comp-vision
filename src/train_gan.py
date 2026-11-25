@@ -1,19 +1,7 @@
-"""Train a DCGAN with the shared convolutional architecture.
-
-Usage:
-    python -m src.train_gan --config configs/gan.yaml
-    python -m src.train_gan --config configs/gan.yaml --set seed=1 latent_dim=8
-
-Outputs (runs/<run_name>/): same layout as src/train_vae.py. train_log.csv has
-    loss_d, loss_g   discriminator / generator losses
-    d_real, d_fake   mean D(x) and mean D(G(z)) -- useful to diagnose instability:
-                     d_fake -> 0 means D wins completely and G stops learning.
-"""
+"""Train a DCGAN with the shared architecture: python -m src.train_gan --config configs/gan.yaml"""
 import argparse
 import time
-
 import torch
-
 from src.config import load_config
 from src.data import get_loader
 from src.losses import discriminator_loss, generator_loss
@@ -21,13 +9,11 @@ from src.models import build_model, save_checkpoint
 from src.models.networks import count_parameters, init_dcgan_weights
 from src.utils import append_csv, fixed_noise, get_device, prepare_run_dir, save_grid, set_seed
 
-
 def parse_args():
     parser = argparse.ArgumentParser(description="Train a DCGAN")
     parser.add_argument("--config", default="configs/gan.yaml")
     parser.add_argument("--set", nargs="*", default=[], metavar="KEY=VALUE", help="override config values")
     return parser.parse_args()
-
 
 def train(cfg):
     set_seed(cfg["seed"])
@@ -55,8 +41,8 @@ def train(cfg):
             z = torch.randn(x.size(0), cfg["latent_dim"], device=device)
             fake = G(z)
 
-            # (1) Discriminator step: push D(x) -> 1 and D(G(z)) -> 0.
-            #     fake.detach(): this step must not update the generator.
+            # (1) Discriminator step: D(x) should go to 1 and D(G(z)) to 0
+            #     detach() so that this step does not change the generator
             real_logits = D(x)
             fake_logits = D(fake.detach())
             loss_d = discriminator_loss(real_logits, fake_logits)
@@ -64,7 +50,7 @@ def train(cfg):
             loss_d.backward()
             opt_d.step()
 
-            # (2) Generator step: fool the (just updated) discriminator.
+            # (2) Generator step: try to fool the discriminator we just updated
             loss_g = generator_loss(D(fake))
             opt_g.zero_grad(set_to_none=True)
             loss_g.backward()
@@ -89,14 +75,12 @@ def train(cfg):
             save_checkpoint(run_dir / "checkpoints" / f"epoch_{epoch:03d}.pt", model, cfg, epoch, elapsed)
     return run_dir
 
-
 def main():
     args = parse_args()
     cfg = load_config(args.config, args.set)
     if cfg["model"] != "gan":
         raise SystemExit(f"{args.config} is a '{cfg['model']}' config, expected 'gan'")
     train(cfg)
-
 
 if __name__ == "__main__":
     main()

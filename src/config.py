@@ -1,28 +1,16 @@
-"""Tiny YAML config loader with inheritance and command-line overrides.
-
-A model config may declare `base: shared.yaml`. The shared file is loaded first
-and the model file overrides it. Every setting that must be identical for the
-VAE and the GAN lives in configs/shared.yaml, so the two models cannot drift
-apart by accident.
-
-Overrides use the same syntax for every script:
-    python -m src.train_vae --config configs/vae.yaml --set seed=1 beta=4
-"""
+"""Load a YAML config (with `base:` inheritance) and apply --set key=value overrides"""
 from pathlib import Path
-
 import yaml
-
 
 def _parse_value(raw):
     value = yaml.safe_load(raw)
     if isinstance(value, str):
-        # YAML reads "1e-4" as a string; we want it as a float.
+        # YAML reads "1e-4" as a string and we want it as a float
         try:
             return float(value)
         except ValueError:
             return value
     return value
-
 
 def load_config(path, overrides=None):
     path = Path(path)

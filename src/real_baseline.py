@@ -1,16 +1,4 @@
-"""Real-vs-real reference values: the best score each metric can reach.
-
-Generative-model metrics have no absolute scale (is an FID of 5 good or bad?). To give
-them one, we run the SAME metric code on two sets of REAL images: 10,000 random
-training images play the role of "generated" samples and are compared with the 10,000
-test images that src.evaluate uses as the reference. A perfect generator would score
-about this; FID is not exactly 0 because of finite-sample noise. src.analysis adds the
-result as a "Real data" row to the main table.
-
-    python -m src.real_baseline                       # dataset from configs/shared.yaml
-
-Writes runs/real_baseline_<dataset>/metrics.json. Needs the evaluation classifier.
-"""
+"""Run the same metrics on real train vs. test images: the best score a generator could reach"""
 import argparse
 from pathlib import Path
 from types import SimpleNamespace
@@ -22,10 +10,8 @@ from src.config import load_config
 from src.evaluate import Evaluator, batched
 from src.utils import get_device, save_json
 
-
 def baseline_path(dataset, output_dir):
     return Path(output_dir) / f"real_baseline_{dataset}" / "metrics.json"
-
 
 def parse_args():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -35,7 +21,6 @@ def parse_args():
     parser.add_argument("--feature-spaces", nargs="+", default=["classifier", "inception"],
                         choices=["classifier", "inception"])
     return parser.parse_args()
-
 
 def main():
     args = parse_args()
@@ -69,7 +54,6 @@ def main():
         if key in res:
             print(f"  {key:22s} {res[key]:.4f}")
     print(f"  -> {path}")
-
 
 if __name__ == "__main__":
     main()
