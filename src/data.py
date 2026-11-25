@@ -13,7 +13,7 @@ _DATASETS = {
     "fashion_mnist": datasets.FashionMNIST,
 }
 _CHANNELS = {"fashion_mnist": 1}
-_NEEDS_PADDING = True
+_NEEDS_PADDING = {"fashion_mnist"}  # 28x28 -> 32x32
 
 
 def dataset_info(name):
