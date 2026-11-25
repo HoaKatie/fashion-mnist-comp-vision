@@ -10,7 +10,7 @@ From the repository root, with the virtual environment active (see the main READ
 python demo/demo.py
 ```
 
-Nothing is trained: the demo loads the three checkpoints in `demo/checkpoints/` (main run,
+Nothing is trained: the demo loads the three checkpoints in `trained_models/` (main run,
 seed 0) and runs on the CPU. The Diversity step takes a few seconds.
 
 | Step | What it shows |
@@ -31,14 +31,14 @@ The captions under each step are the `CAPTIONS` list at the top of `demo.py`.
 ## When the numbers change
 
 `python run_all.py` (or `run_all.py main` with seed 0) copies the newly trained seed-0 VAE,
-GAN and classifier into `demo/checkpoints/`. Run the demo to check it, then commit
-`results/` and `demo/checkpoints/` **together**, so the pictures and the Conclusion table match.
+GAN and classifier into `trained_models/`. Run the demo to check it, then commit
+`results/` and `trained_models/` **together**, so the pictures and the Conclusion table match.
 
 ## Troubleshooting
 
 | Problem | Fix |
 |---|---|
 | `Tkinter is not available` / `No module named '_tkinter'` | macOS + Homebrew: `brew install python-tk@3.12`; Ubuntu: `sudo apt install python3-tk` |
-| `Checkpoint not found` | `git pull` (the demo checkpoints are committed) |
+| `Checkpoint not found` | `git pull` (`trained_models/` is committed) |
 | The window does not appear | it opens in front for a moment; if it is still hidden, look for the Python icon in the Dock / taskbar |
 | First start is slow | Fashion-MNIST (~30 MB) downloads to `data/` once |

@@ -10,4 +10,6 @@ runs/
 runs_smoke/
 results_smoke/
 *.pt
-!demo/checkpoints/**/*.pt
+!trained_models/**/*.pt
+trained_models/*/eval/
+trained_models/cache/

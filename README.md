@@ -22,7 +22,7 @@ are in [`results/`](results/); start with `qualitative_samples.png` and `precisi
 |---|---|---|---|
 | FID, classifier features ↓ | **1.29** | 20.7 | 0.03 |
 | FID, Inception features ↓ | **13.3** | 56.9 | 2.4 |
-| Precision / recall ↑ | **0.85 / 0.85** | 0.70 / 0.49 | 0.90 / 0.89 |
+| Precision / recall, classifier features ↑ | **0.85 / 0.85** | 0.70 / 0.49 | 0.90 / 0.89 |
 | Sharpness: Laplacian variance (closest to real is best) | **0.146** | 0.038 | 0.150 |
 | Latent smoothness: interpolation CV ↓ | 0.69 | **0.51** | – |
 
@@ -91,6 +91,20 @@ python -m src.evaluate  --config configs/gan.yaml --set seed=1 --all-epochs --qu
 python -m src.analysis                                                     # runs/ -> results/
 ```
 
+## Check our numbers without training
+
+`trained_models/` has our final seed-0 VAE, DCGAN and evaluation classifier (13 MB, same folders
+as `runs/`). Evaluating them takes under a minute, even on a CPU, and gives the seed-0 rows of
+`results/all_runs.csv` (not the 3-seed mean above):
+
+```bash
+python -m src.evaluate --config configs/vae.yaml --set output_dir=trained_models --feature-spaces classifier
+python -m src.evaluate --config configs/gan.yaml --set output_dir=trained_models --feature-spaces classifier
+```
+
+Remove `--feature-spaces classifier` to also get the Inception metrics. `run_all.py main` replaces
+these files with the newly trained models.
+
 ## Key design choice: the VAE loss
 
 `vae_loss` in [src/losses.py](src/losses.py) sums the squared error over the pixels of each
@@ -107,6 +121,7 @@ KL.
 | `results/ablation_latent_dim.md`, `results/ablation_beta.md` | ablation tables |
 | `results/all_runs.csv` | every final metric of every run |
 | `results/*.png` | precision–recall, mode coverage, sharpness, learning and training curves, ablations, qualitative grids |
+| `trained_models/` | final seed-0 checkpoints (committed), see above |
 | `runs/<run>/` | created locally when you train (not committed): config, loss log, per-epoch samples, `eval/` metrics and figures, checkpoints |
 
 ## Repository layout
@@ -115,7 +130,7 @@ KL.
 run_all.py          one command for the whole pipeline (see above)
 configs/            shared.yaml (fairness) + vae.yaml, gan.yaml, classifier.yaml
 src/
-  data.py           Fashion-MNIST / MNIST / CIFAR-10 -> 32x32 in [-1, 1]
+  data.py           Fashion-MNIST -> 32x32 in [-1, 1]
   models/           networks.py (shared blocks), vae.py, gan.py, classifier.py (evaluation only)
   losses.py         VAE negative ELBO and GAN losses
   train_vae.py, train_gan.py, train_classifier.py
@@ -124,6 +139,7 @@ src/
   real_baseline.py  same metrics on real train vs. test images (best achievable scores)
   analysis.py       aggregates all runs into tables and figures
 results/            tables + figures (created by src.analysis, then committed)
+trained_models/     final seed-0 VAE, DCGAN and classifier (copied from runs/ by run_all.py)
 ```
 
 ## References
@@ -131,8 +147,10 @@ results/            tables + figures (created by src.analysis, then committed)
 - Kingma & Welling (2014). *Auto-Encoding Variational Bayes.* ICLR.
 - Goodfellow et al. (2014). *Generative Adversarial Nets.* NeurIPS.
 - Radford, Metz & Chintala (2016). *Unsupervised Representation Learning with Deep Convolutional GANs.* ICLR.
+- Kingma & Ba (2015). *Adam: A Method for Stochastic Optimization.* ICLR.
 - Higgins et al. (2017). *β-VAE: Learning Basic Visual Concepts with a Constrained Variational Framework.* ICLR.
 - Heusel et al. (2017). *GANs Trained by a Two Time-Scale Update Rule Converge to a Local Nash Equilibrium* (FID). NeurIPS.
+- Szegedy et al. (2016). *Rethinking the Inception Architecture for Computer Vision* (Inception-v3, the network behind FID). CVPR.
 - Kynkäänniemi et al. (2019). *Improved Precision and Recall Metric for Assessing Generative Models.* NeurIPS.
 - Pech-Pacheco et al. (2000). *Diatom autofocusing in brightfield microscopy: a comparative study* (variance of Laplacian). ICPR.
 - White (2016). *Sampling Generative Networks* (slerp).

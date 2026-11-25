@@ -11,14 +11,15 @@ from matplotlib.patches import FancyBboxPatch
 from torchvision.utils import make_grid
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT)) 
+sys.path.insert(0, str(ROOT))
+from src.config import load_config
 from src.data import class_names, load_split
 from src.evaluate import batched, generate
 from src.metrics import laplacian_variance, slerp
 from src.models import load_checkpoint, load_classifier
-from src.utils import to_unit_range
+from src.utils import run_name, to_unit_range
 
-CKPT_DIR = ROOT / "demo" / "checkpoints"
+CKPT_DIR = ROOT / "trained_models"
 DATA_DIR = ROOT / "data"
 RESULTS_CSV = ROOT / "results" / "all_runs.csv"
 DEVICE = torch.device("cpu")
@@ -27,7 +28,7 @@ N_SHARP, N_DIV, N_INTERP = 1000, 5000, 8   # images for the sharpness number, th
 COLORS = {"VAE": "#1d4ed8", "DCGAN": "#c2410c"}
 MODELS = (("VAE", "vae"), ("DCGAN", "gan"))
 BG, INK, MUTED, CAPTION_BG = "#ffffff", "#111827", "#4b5563", "#f1f5f9"
-TAB_ON, TAB_OFF = ("#1f2937", "#ffffff"), ("#e2e8f0", "#334155")   
+TAB_ON, TAB_OFF = ("#1f2937", "#ffffff"), ("#e2e8f0", "#334155")
 
 CAPTIONS = [
     "Fashion-MNIST: 70,000 small black-and-white photos of clothes in 10 classes. "
@@ -46,17 +47,23 @@ CAPTIONS = [
     "smoother latent space. No trade-off here: blur costs the VAE both.",
 ]
 
+def final_checkpoint(ckpt_dir, model):
+    """Last seed-0 checkpoint of the model, in the same folder layout as runs/"""
+    cfg = load_config(ROOT / "configs" / f"{model}.yaml", ["seed=0"])
+    return Path(ckpt_dir) / run_name(cfg) / "checkpoints" / f"epoch_{cfg['epochs']:03d}.pt"
+
 def load_context(ckpt_dir=CKPT_DIR):
     """Load both generators, the evaluation classifier and the real test set, once at start"""
     ckpt_dir = Path(ckpt_dir)
-    for path in (ckpt_dir / "vae.pt", ckpt_dir / "gan.pt", ckpt_dir / "classifier_fashion_mnist" / "classifier.pt"):
+    vae_path, gan_path = final_checkpoint(ckpt_dir, "vae"), final_checkpoint(ckpt_dir, "gan")
+    for path in (vae_path, gan_path, ckpt_dir / "classifier_fashion_mnist" / "classifier.pt"):
         if not path.is_file():
-            raise SystemExit(f"Checkpoint not found: {path}\nRun `git pull` (the demo checkpoints are committed).")
+            raise SystemExit(f"Checkpoint not found: {path}\nRun `git pull` (trained_models/ is committed).")
     print("Loading the models and the test images ...")   # takes a few seconds; the window opens after
     if not (DATA_DIR / "FashionMNIST").is_dir():
         print("First run: downloading Fashion-MNIST (~30 MB) into data/ ...")
-    vae, cfg_vae, _ = load_checkpoint(ckpt_dir / "vae.pt", DEVICE)
-    gan, cfg_gan, _ = load_checkpoint(ckpt_dir / "gan.pt", DEVICE)
+    vae, cfg_vae, _ = load_checkpoint(vae_path, DEVICE)
+    gan, cfg_gan, _ = load_checkpoint(gan_path, DEVICE)
     dataset = cfg_vae["dataset"]
     clf, _ = load_classifier(dataset, ckpt_dir, DEVICE)
     real_x, real_y = load_split(dataset, "test", DATA_DIR)

@@ -32,25 +32,22 @@ def dataset_name():
     from src.config import load_config
     return load_config(ROOT / "configs" / "shared.yaml")["dataset"]
 
-def refresh_demo_checkpoints(seeds):
-    """Copy the final seed-0 VAE and GAN and the classifier into demo/checkpoints/, so the Q&A demo
-    shows the newest models. Skipped when seed 0 was not trained or there is no demo/ folder"""
-    demo = ROOT / "demo" / "checkpoints"
-    if 0 not in seeds or not demo.parent.is_dir():
+def refresh_trained_models(seeds):
+    """Copy the final seed-0 VAE and GAN and the classifier from runs/ to trained_models/ (same layout),
+    so the committed models always match results/. Skipped when seed 0 was not trained"""
+    if 0 not in seeds:
         return
     from src.config import load_config
-    from src.utils import run_dir_for
-    copies = []
+    from src.utils import run_name
+    files = [Path(f"classifier_{dataset_name()}") / "classifier.pt"]
     for model in MODELS:
         cfg = load_config(ROOT / "configs" / f"{model}.yaml", ["seed=0"])
-        copies.append((ROOT / run_dir_for(cfg) / "checkpoints" / f"epoch_{cfg['epochs']:03d}.pt", demo / f"{model}.pt"))
-    classifier = Path(f"classifier_{dataset_name()}") / "classifier.pt"
-    copies.append((ROOT / "runs" / classifier, demo / classifier))
-    for source, target in copies:
-        print(f"$ cp {source.relative_to(ROOT)} {target.relative_to(ROOT)}", flush=True)
+        files.append(Path(run_name(cfg)) / "checkpoints" / f"epoch_{cfg['epochs']:03d}.pt")
+    for file in files:
+        print(f"$ cp runs/{file} trained_models/{file}", flush=True)
         if not DRY_RUN:
-            target.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(source, target)
+            (ROOT / "trained_models" / file).parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(ROOT / "runs" / file, ROOT / "trained_models" / file)
 
 def run_main(seeds):
     """Main experiment: VAE vs DCGAN with the shared default settings, one run per seed"""
@@ -75,7 +72,7 @@ def run_main(seeds):
             step(f"train_{model}", "--config", config, "--set", f"seed={seed}")
             step("evaluate", "--config", config, "--set", f"seed={seed}")  # metrics + figures
             step("evaluate", "--config", config, "--set", f"seed={seed}", "--all-epochs", "--quick")  # learning curve
-    refresh_demo_checkpoints(seeds)
+    refresh_trained_models(seeds)
 
 def run_ablation(seeds):
     """Ablations (run after `main`, which provides latent_dim=32 / beta=1 and the classifier):

@@ -5,12 +5,12 @@ data_root: data
 output_dir: runs
 
 latent_dim: 32
-base_channels: 64      
+base_channels: 64
 batch_size: 128
-epochs: 30               
+epochs: 30
 seed: 0
 
 save_every: 5            # epoch checkpoint
 num_workers: 2
-device: auto             
-subset: null             
+device: auto
+subset: null
