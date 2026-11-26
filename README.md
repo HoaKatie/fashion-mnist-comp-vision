@@ -1,101 +1,69 @@
 # VAE vs DCGAN on Fashion-MNIST
 
-This is our COMP 4102 final project. We wanted to see how a VAE and a DCGAN compare on
-Fashion-MNIST, mainly which one makes sharper images and which one covers the dataset better.
+COMP 4102 final project. We compare two ways of generating clothing images. We wanted to see
+which model makes sharper images, which covers the real data better, and what happens when we
+move between two points in the latent space.
 
-To keep the comparison fair, both models are built from the same blocks. The VAE decoder is also
-the GAN generator, and the VAE encoder is also the GAN discriminator. They also get the same latent
-size, data and number of epochs, so the only things that change are the loss and the optimizer
-settings.
+The VAE decoder and the DCGAN generator use the same convolutional layers. Both models get
+the same training data, batch size, latent size, and number of epochs. The VAE learns by
+reconstructing images and regularizing its latent space. The DCGAN learns by trying to fool a
+discriminator.
 
-We started with three hypotheses:
+## Run the comparison
 
-1. The GAN makes sharper images. This turned out to be true.
-2. The VAE covers the data better and trains more stably. This was wrong, the GAN did better here too.
-3. The VAE has a smoother latent space. This was true, but the β ablation shows it is not that simple.
-
-## Results
-
-These are averages over 3 seeds. The full table is in [results/main_results.md](results/main_results.md),
-and the figures and ablation tables are in [results/](results/).
-
-| | DCGAN | VAE | Real images |
-|---|---|---|---|
-| FID, classifier features ↓ | **1.29** | 20.7 | 0.03 |
-| FID, Inception features ↓ | **13.3** | 56.9 | 2.4 |
-| Precision / recall, classifier features ↑ | **0.85 / 0.85** | 0.70 / 0.49 | 0.90 / 0.89 |
-| Sharpness, Laplacian variance (closer to real is better) | **0.146** | 0.038 | 0.150 |
-| Interpolation CV, latent smoothness ↓ | 0.69 | **0.51** | – |
-
-## Setup
+Open a terminal in this folder.
 
 ```bash
 python3 -m venv .venv
-source .venv/bin/activate          # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+python compare.py
 ```
 
-The code picks CUDA, Apple MPS or the CPU on its own. Fashion-MNIST (about 30 MB) is downloaded the
-first time you run anything, and the Inception weights for FID (about 100 MB) the first time you run
-a full evaluation.
+The command loads the two saved seed-0 models and the clothing classifier from `trained_models/`.
+It downloads Fashion-MNIST into `data/` on first use. For a quick look, run
+`python compare.py --samples 1000`. Use `--data /path/to/data` if you already have a folder
+containing `FashionMNIST/`.
 
-## How to run
+## What the comparison does
 
-Everything goes through `run_all.py`. We suggest running the smoke test first. It takes about a
-minute and checks that every step works.
+We generate 10,000 images from each model using the same random noise. For the image quality
+and coverage scores, we compare each generator with the real test split. We also score
+10,000 real training images against the test split to get a real-image reference.
 
-```bash
-python run_all.py smoke
-python run_all.py
-```
+The command saves its files in `comparison/`. The links below open the results used in
+the [LaTeX report](report/report.tex). To regenerate those files from the saved checkpoints,
+run `python compare.py --device cpu --output results`.
 
-The second command runs the whole project. If you only want one part, use `main` for the VAE vs
-DCGAN runs (seeds 0, 1 and 2, about an hour on an Apple-silicon MacBook), `ablation` for the latent
-size and β ablations, or `analysis` to rebuild `results/` from `runs/`. Adding `--dry-run` prints
-every command without running it, which is handy if you want to run one step by hand.
+| File | What to look at |
+|---|---|
+| [metrics.csv](results/metrics.csv) | Lower Fréchet distance means the feature distributions are closer. Precision measures how many generated images fall near real ones. Recall measures how much of the real data the generator covers. For Laplacian variance, compare the edge strength to the real row. |
+| [samples.png](results/samples.png) | The first 16 test images and the first 16 samples from each model. |
+| [class_balance.png](results/class_balance.png) | The actual test classes and the classifier's predicted classes for generated images. A lower class KL means the shares are closer to the real mix. |
+| [successes_and_failures.png](results/successes_and_failures.png) | The eight highest- and lowest-confidence examples for each model. Look at the images to see which details are clear and which ones are hard to identify. |
+| [interpolation.png](results/interpolation.png) | One 10-image path for each model. The CSV scores 100 paths. Lower interpolation CV means more even changes between frames. |
 
-## Checking our numbers without training
+For these seed-0 checkpoints, the DCGAN reached a recall of 0.856 and an edge variance of
+0.148, close to the real-image value of 0.150. The VAE's recall was 0.488, and it had the
+more even latent paths (CV 0.503 against 0.696). The classifier scored 90.7% on real test
+images, so treat its predictions for generated clothes as estimates.
 
-`trained_models/` has our final seed-0 models. These two commands take less than a minute and should
-give the same numbers as the seed-0 rows in `results/all_runs.csv`.
+## Where to read the code
 
-```bash
-python -m src.evaluate --config configs/vae.yaml --set output_dir=trained_models --feature-spaces classifier
-python -m src.evaluate --config configs/gan.yaml --set output_dir=trained_models --feature-spaces classifier
-```
+- [compare.py](compare.py) loads the models, generates images, and runs the comparison.
+- [metrics.py](src/metrics.py) computes the scores, and [plots.py](src/plots.py) saves the figures.
+- [data.py](src/data.py) pads the 28×28 images to 32×32 and scales their pixel values.
+- [networks.py](src/models/networks.py) has the shared layers. [vae.py](src/models/vae.py),
+  [gan.py](src/models/gan.py), and [classifier.py](src/models/classifier.py) show what each
+  model does with its layers.
+- [losses.py](src/losses.py) has the VAE and GAN losses that are written out in the report.
 
-## A note on the VAE loss
+The original training loops are in [train_vae.py](src/train_vae.py), [train_gan.py](src/train_gan.py),
+and [train_classifier.py](src/train_classifier.py). They use the settings in [configs/](configs/)
+and write to `runs/` by default. The comparison uses the checkpoints in [trained_models/](trained_models/).
 
-In `src/losses.py` we sum the reconstruction error over all pixels instead of taking the mean. The mean would divide the error by the 1024 pixels but not the KL term, so the KL would end up about 1000 times stronger. That is like setting β to 1000, and the samples get a lot blurrier.
+## Open the report in Overleaf
 
-## Code
-
-```
-run_all.py            runs the whole project
-configs/              shared.yaml (settings both models share) + vae, gan, classifier
-src/data.py           loads Fashion-MNIST as 32x32 images in [-1, 1]
-src/models/           networks.py (shared blocks), vae.py, gan.py, classifier.py (only for evaluation)
-src/losses.py         VAE loss and GAN losses
-src/train_*.py        training
-src/metrics.py        FID, precision/recall, sharpness, latent smoothness, ...
-src/evaluate.py       all metrics and figures for one run
-src/real_baseline.py  same metrics on real images, the best score we can hope for
-src/analysis.py       collects all runs into results/
-results/              tables and figures
-trained_models/       our final seed-0 models
-```
-
-## References
-
-- Kingma & Welling (2014). Auto-Encoding Variational Bayes
-- Goodfellow et al. (2014). Generative Adversarial Nets
-- Radford et al. (2016). Unsupervised Representation Learning with Deep Convolutional GANs
-- Kingma & Ba (2015). Adam: A Method for Stochastic Optimization
-- Higgins et al. (2017). β-VAE: Learning Basic Visual Concepts with a Constrained Variational Framework
-- Heusel et al. (2017). GANs Trained by a Two Time-Scale Update Rule Converge to a Local Nash Equilibrium (FID)
-- Szegedy et al. (2016). Rethinking the Inception Architecture for Computer Vision (Inception-v3)
-- Kynkäänniemi et al. (2019). Improved Precision and Recall Metric for Assessing Generative Models
-- Pech-Pacheco et al. (2000). Diatom Autofocusing in Brightfield Microscopy (Laplacian variance)
-- White (2016). Sampling Generative Networks (slerp)
-- Karras et al. (2019). A Style-Based Generator Architecture for GANs (perceptual path length)
-- Xiao et al. (2017). Fashion-MNIST: a Novel Image Dataset for Benchmarking Machine Learning Algorithms
+Copy [report.tex](report/report.tex) into `main.tex`, fill in the team names, and upload the
+four PNGs linked above to an Overleaf folder called `results`. Use pdfLaTeX. The references
+are included in the source.

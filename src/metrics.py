@@ -1,4 +1,10 @@
-"""Evaluation metrics: FID, precision/recall, mode coverage, sharpness and latent smoothness"""
+"""Calculate the image and latent-space scores used by compare.py.
+
+The functions take image tensors, classifier features, or class counts and
+turn them into scores. To compute them on the bundled models, run
+python compare.py from the project folder.
+"""
+
 import warnings
 
 import numpy as np
@@ -7,28 +13,32 @@ import torch.nn.functional as F
 from scipy import linalg
 
 def frechet_distance(feats_a, feats_b):
-    """Fréchet distance between Gaussians fitted to two feature sets (Heusel et al., 2017)
-    With Inception features this is the usual FID. Lower is better
-    """
+    """Compare the mean and covariance of two groups of image features."""
+    # Use float64 for the matrix calculations. Each row describes one image.
     a = np.asarray(feats_a, dtype=np.float64)
     b = np.asarray(feats_b, dtype=np.float64)
+    # The mean is the average feature vector. Covariance describes how features vary together.
     mu_a, mu_b = a.mean(axis=0), b.mean(axis=0)
     cov_a, cov_b = np.cov(a, rowvar=False), np.cov(b, rowvar=False)
 
     with warnings.catch_warnings():
-        # Some features are always 0, so the covariance can be singular; sqrtm usually still works
+        # Some features can be constant, so the covariance matrix can be singular.
         warnings.simplefilter("ignore", linalg.LinAlgWarning)
         covmean = linalg.sqrtm(cov_a @ cov_b)
-    if not np.isfinite(covmean).all():  # if sqrtm failed, add a tiny value to the diagonal and retry
+    # If the matrix square root gives invalid values, add a small diagonal term and try again.
+    if not np.isfinite(covmean).all():
         ridge = 1e-6 * np.eye(cov_a.shape[0])
         covmean = linalg.sqrtm((cov_a + ridge) @ (cov_b + ridge))
-    covmean = np.real(covmean)  # drop tiny imaginary parts caused by rounding
+    covmean = np.real(covmean)  # Drop tiny imaginary parts from rounding.
 
-    return float(((mu_a - mu_b) ** 2).sum() + np.trace(cov_a) + np.trace(cov_b) - 2 * np.trace(covmean))
+    # Add the differences in the means and covariances. Clamp tiny negative roundoff to zero.
+    distance = ((mu_a - mu_b) ** 2).sum() + np.trace(cov_a) + np.trace(cov_b) - 2 * np.trace(covmean)
+    return float(max(distance, 0.0))
 
 def _knn_radius(feats, k, batch=1000):
     """Distance from each point to its k-th nearest neighbour within the same set"""
     radii = []
+    # Compare each chunk with the whole set. Chunking keeps the distance matrix smaller.
     for chunk in feats.split(batch):
         dists = torch.cdist(chunk, feats)
         radii.append(dists.kthvalue(k + 1, dim=1).values)  # k+1: skip the distance to itself (0)
@@ -39,6 +49,7 @@ def _fraction_inside(queries, support, support_radii, batch=1000):
     inside = []
     for chunk in queries.split(batch):
         dists = torch.cdist(chunk, support)
+        # Count a query if its distance to any support image fits inside that image's radius.
         inside.append((dists <= support_radii.unsqueeze(0)).any(dim=1))
     return torch.cat(inside).float().mean().item()
 
@@ -49,69 +60,40 @@ def precision_recall(real_feats, fake_feats, k=3):
     """
     real = torch.as_tensor(real_feats, dtype=torch.float32)
     fake = torch.as_tensor(fake_feats, dtype=torch.float32)
+    # Precision tests fake images against real neighbourhoods. Recall swaps the two sets.
     precision = _fraction_inside(fake, real, _knn_radius(real, k))
     recall = _fraction_inside(real, fake, _knn_radius(fake, k))
     return precision, recall
 
-def mode_coverage(pred_labels, num_classes, reference_labels, min_share=0.01):
-    """How the generated images spread over the classes, using the evaluation classifier
-    1. modes_covered = classes with at least min_share of the images
-    2. class_kl = KL(generated || real), 0 when as balanced as the real data
-    """
-    p = np.bincount(pred_labels, minlength=num_classes) / len(pred_labels)
-    q = np.bincount(reference_labels, minlength=num_classes) / len(reference_labels)
-    eps = 1e-10
-    kl = float(np.sum(p * np.log((p + eps) / (q + eps))))
-    return {"modes_covered": int((p >= min_share).sum()), "class_kl": kl, "class_histogram": p.tolist()}
+def class_shares(labels, num_classes):
+    # Count images per label and divide by the total. Include classes with zero images.
+    return torch.bincount(labels, minlength=num_classes).double() / len(labels)
 
-def _gray01(images):
-    """(B, C, H, W) in [-1, 1] -> (B, 1, H, W) grayscale in [0, 1]"""
-    x = (images.clamp(-1, 1) + 1) / 2
-    if x.size(1) == 3:
-        weights = torch.tensor([0.299, 0.587, 0.114], device=x.device).view(1, 3, 1, 1)
-        x = (x * weights).sum(dim=1, keepdim=True)
-    return x
+def class_kl(shares, real_shares):
+    # Compare the two class shares and weight each log ratio by the share in the group being scored.
+    # The small offset keeps the logarithm defined when a class has no samples.
+    ratio = (shares + 1e-10) / (real_shares + 1e-10)
+    return (shares * ratio.log()).sum().item()
 
+# Compare each centre pixel with its four nearest neighbours to pick up edges.
 LAPLACIAN_KERNEL = torch.tensor([[0.0, 1.0, 0.0],
                                  [1.0, -4.0, 1.0],
                                  [0.0, 1.0, 0.0]])
 
 def laplacian_variance(images):
-    """Variance of the Laplacian (an edge filter) per image. Weak edges give a low value, so blurry = low"""
-    gray = _gray01(images)
+    # Change [-1, 1] pixels back to [0, 1] before applying the edge filter.
+    gray = (images.clamp(-1, 1) + 1) / 2
     kernel = LAPLACIAN_KERNEL.to(gray).view(1, 1, 3, 3)
     response = F.conv2d(gray, kernel)  # 'valid' convolution
+    # Take the variance across pixels in each filtered image. Blur usually lowers it.
     return response.flatten(1).var(dim=1)
-
-def high_frequency_ratio(images, cutoff=0.25):
-    """Share of each image's spectral energy above `cutoff` (cycles/pixel). Blurry images have less"""
-    gray = _gray01(images)
-    gray = gray - gray.mean(dim=(-2, -1), keepdim=True)  # remove the mean brightness (DC component)
-    power = torch.fft.fft2(gray).abs() ** 2
-    h, w = gray.shape[-2:]
-    fy = torch.fft.fftfreq(h, device=gray.device).view(-1, 1)
-    fx = torch.fft.fftfreq(w, device=gray.device).view(1, -1)
-    high = (fy ** 2 + fx ** 2).sqrt() > cutoff
-    return power[..., high].flatten(1).sum(1) / power.flatten(1).sum(1).clamp_min(1e-12)
-
-def psnr(x, y):
-    """Peak signal-to-noise ratio in dB, per image, computed in [0, 1] (so MAX = 1)"""
-    mse = (((x.clamp(-1, 1) - y.clamp(-1, 1)) / 2) ** 2).flatten(1).mean(1)
-    return 10 * torch.log10(1.0 / mse.clamp_min(1e-10))
-
-def nearest_neighbors(queries, reference, batch=500):
-    """Pixel distance from each query image to its closest reference image, and that image's index"""
-    ref = reference.flatten(1)
-    dists, idxs = [], []
-    for chunk in queries.flatten(1).split(batch):
-        nearest = torch.cdist(chunk, ref).min(dim=1)
-        dists.append(nearest.values)
-        idxs.append(nearest.indices)
-    return torch.cat(dists), torch.cat(idxs)
 
 def slerp(z0, z1, t):
     """Spherical interpolation from z0 to z1. A straight line would pass near 0, where the model saw few z"""
+    # The dot product of the unit vectors gives the cosine of the angle between them.
+    # Clamp away from the endpoints so the sine used in the denominator stays nonzero.
     omega = torch.acos((F.normalize(z0, dim=-1) * F.normalize(z1, dim=-1)).sum(-1).clamp(-1 + 1e-7, 1 - 1e-7))
+    # Give the angles and frame positions matching axes, then mix the two endpoints.
     omega = omega.view(-1, 1, 1)
     t = t.view(1, -1, 1)
     sin_omega = torch.sin(omega)
@@ -120,6 +102,8 @@ def slerp(z0, z1, t):
 
 def path_smoothness(path_feats):
     """How evenly the images change along each path: CV of the step sizes. Lower = smoother"""
+    # Measure the feature distance from each frame to the next frame on its path.
     steps = (path_feats[:, 1:] - path_feats[:, :-1]).norm(dim=-1)  # (P, S-1)
+    # Divide the spread of the step sizes by their mean, then average over paths.
     cv = steps.std(dim=1) / steps.mean(dim=1).clamp_min(1e-12)
     return cv.mean().item()
