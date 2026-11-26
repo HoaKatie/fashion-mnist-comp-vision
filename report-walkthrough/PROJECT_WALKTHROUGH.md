@@ -42,16 +42,19 @@ If you already have the project's Conda environment, activate it with
 ## Run the demo using the saved models
 
 ```bash
-python compare.py --samples 1000 --output comparison/demo
+python compare.py --samples 1000
 ```
 
-The script uses the bundled checkpoints and writes the output to `comparison/demo/`.
+The script uses the bundled checkpoints and writes the output to `results/custom-compare/`.
 On first use, Torchvision downloads Fashion-MNIST into `data/`. To reuse an
 existing dataset, pass the folder that contains `FashionMNIST/`.
 
 ```bash
-python compare.py --samples 1000 --output comparison/demo --data /path/to/data
+python compare.py --samples 1000 --data /path/to/data
 ```
+
+Give a custom run its own folder with `--output results/demo` or another name
+under `results/`.
 
 The comparison runs in this order.
 
@@ -71,11 +74,17 @@ when quoting figures from the report's 10,000-image comparison. In that run, fea
 and recall were higher for the DCGAN, and its edge variance was closer to the real baseline.
 The VAE's interpolation steps were more even.
 
-Use `python compare.py` for the full comparison with the saved checkpoints.
-Run this Python command to regenerate the report's CSV and figures in `results/`.
+Open [training_curves.png](../results/training_curves.png) to see what changed
+between epochs. Run `python plot_training.py` to rebuild it from the original
+seed-0 training logs and the 5,000-image checkpoint scores in
+[results/training/](../results/training/).
+
+The standard run uses the saved checkpoints and evaluates 10,000 images per
+group on CPU. It regenerates the report's comparison CSV and four figures in
+`results/`.
 
 ```bash
-python compare.py --device cpu --output results
+python compare.py
 ```
 
 ## Training commands for reference
@@ -91,14 +100,14 @@ python -m src.train_classifier --config configs/classifier.yaml
 ```
 
 Once training finishes, this command uses the new checkpoints from `runs/` and
-writes their results to `comparison/retrained/`.
+writes their results to `results/retrained/`.
 
 ```bash
 python compare.py \
   --vae runs/vae_fashion_mnist_z32_beta1_seed0/checkpoints/epoch_030.pt \
   --gan runs/gan_fashion_mnist_z32_seed0/checkpoints/epoch_030.pt \
   --classifier runs/classifier_fashion_mnist/classifier.pt \
-  --output comparison/retrained
+  --output results/retrained
 ```
 
 ## Where the bundled checkpoints came from

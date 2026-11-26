@@ -1,11 +1,12 @@
 """Compare the VAE and DCGAN on the same Fashion-MNIST test images.
 
 Load the saved models, generate clothing images, and write a CSV and four PNGs
-to comparison/. Run these commands from the folder that contains compare.py.
+under results/. Run these commands from the folder that contains compare.py.
 
-    python compare.py                  # full comparison with 10,000 images per group
-    python compare.py --samples 1000   # quick demo with the bundled checkpoints
+    python compare.py                  # standard 10,000-image comparison on CPU
+    python compare.py --samples 1000   # quick comparison in results/custom-compare/
 
+Use --output results/my-comparison to name a custom run.
 Use --data to point to a folder that already contains FashionMNIST/.
 """
 
@@ -23,7 +24,15 @@ from src.plots import save_class_balance, save_grids
 from src.utils import get_device
 
 ROOT = Path(__file__).resolve().parent
+RESULTS = ROOT / "results"
 TRAINED = ROOT / "trained_models"
+DEFAULT_SAMPLES = 10000
+DEFAULT_DEVICE = "cpu"
+DEFAULT_CHECKPOINTS = {
+    "vae": TRAINED / "vae_fashion_mnist_z32_beta1_seed0/checkpoints/epoch_030.pt",
+    "gan": TRAINED / "gan_fashion_mnist_z32_seed0/checkpoints/epoch_030.pt",
+    "classifier": TRAINED / "classifier_fashion_mnist/classifier.pt",
+}
 DATASET = "fashion_mnist"
 EVAL_SEED = 0
 N_PATHS = 100
@@ -33,20 +42,37 @@ N_STEPS = 10
 def parse_args():
     parser = argparse.ArgumentParser(description=__doc__)
     # The options control the number of images, where to find inputs, and where to save outputs.
-    parser.add_argument("--samples", type=int, default=10000, help="images per group (16 to 10000)")
+    parser.add_argument("--samples", type=int, default=DEFAULT_SAMPLES, help="images per group (16 to 10000)")
     parser.add_argument("--data", type=Path, default=ROOT / "data", help="folder containing FashionMNIST/")
-    parser.add_argument("--output", type=Path, default=ROOT / "comparison", help="where to save scores and plots")
-    parser.add_argument("--device", default="auto", choices=("auto", "cpu", "cuda", "mps"))
-    parser.add_argument("--vae", type=Path, default=TRAINED / "vae_fashion_mnist_z32_beta1_seed0/checkpoints/epoch_030.pt")
-    parser.add_argument("--gan", type=Path, default=TRAINED / "gan_fashion_mnist_z32_seed0/checkpoints/epoch_030.pt")
-    parser.add_argument("--classifier", type=Path, default=TRAINED / "classifier_fashion_mnist/classifier.pt")
+    parser.add_argument("--output", type=Path, help="output folder under results/, relative to the project folder")
+    parser.add_argument("--device", default=DEFAULT_DEVICE, choices=("auto", "cpu", "cuda", "mps"), help="default: cpu")
+    for name, checkpoint in DEFAULT_CHECKPOINTS.items():
+        parser.add_argument(f"--{name}", type=Path, default=checkpoint, help=f"path to the {name} checkpoint")
     args = parser.parse_args()
     # We need 16 samples for the image grids. The test split contains 10,000 images.
-    if not 16 <= args.samples <= 10000:
+    if not 16 <= args.samples <= DEFAULT_SAMPLES:
         parser.error("--samples must be between 16 and 10000")
     for path in (args.vae, args.gan, args.classifier):
         if not path.is_file():
             parser.error(f"missing checkpoint {path}")
+
+    # Keep the full CPU run with the bundled models at the top of results/.
+    # Different sample counts, devices, or checkpoints go into a separate folder.
+    custom = (
+        args.samples != DEFAULT_SAMPLES
+        or args.device != DEFAULT_DEVICE
+        or any(getattr(args, name).resolve() != path.resolve() for name, path in DEFAULT_CHECKPOINTS.items())
+    )
+    if args.output is None:
+        args.output = RESULTS / "custom-compare" if custom else RESULTS
+
+    # Resolve explicit names from the project folder and keep all outputs inside results/.
+    args.output = (ROOT / args.output).resolve()
+    results = RESULTS.resolve()
+    if args.output != results and results not in args.output.parents:
+        parser.error("--output must be inside results/, for example results/custom-compare")
+    if custom and args.output == results:
+        parser.error("choose a subfolder of results/ for a custom comparison")
     return args
 
 

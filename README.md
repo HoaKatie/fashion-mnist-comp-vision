@@ -38,12 +38,17 @@ With the environment active, choose a quick demo or the full comparison.
 Both use the saved models in `trained_models/`.
 
 ```bash
-# Run the quick demo with 1,000 images per group and save it in comparison/demo/.
-python compare.py --samples 1000 --output comparison/demo
-
-# Run the full comparison with 10,000 images per group and save it in comparison/.
+# Run the standard CPU comparison with 10,000 images per group and save it in results/.
 python compare.py
+
+# Run a quick comparison with 1,000 images per group and save it in results/custom-compare/.
+python compare.py --samples 1000
 ```
+
+Changing the sample count, device, or checkpoints sends the outputs to
+`results/custom-compare/` by default. To keep a separate run, name a subfolder
+with `--output results/my-comparison`. Output paths are relative to the project
+folder.
 
 Fashion-MNIST downloads into `data/` on first use. Add `--data /path/to/data` to a Python
 command to reuse a folder that already contains `FashionMNIST/`.
@@ -89,7 +94,8 @@ Start at `compare()` in [compare.py](compare.py). Both runs follow the same step
 ## Results and figures
 
 The repository includes the full comparison in `results/`, so you can open the scores
-and figures below before running anything. A fresh full comparison writes to `comparison/`.
+and figures below before running anything. Running `python compare.py` regenerates
+the comparison CSV and four figures in that folder.
 
 | File | What to look at |
 |---|---|
@@ -98,6 +104,11 @@ and figures below before running anything. A fresh full comparison writes to `co
 | [class_balance.png](results/class_balance.png) | The actual test classes and the classifier's predicted classes for generated images. A lower class KL means the shares are closer to the real mix. |
 | [successes_and_failures.png](results/successes_and_failures.png) | The eight highest- and lowest-confidence examples for each model. Look at the images to see which details are clear and which ones are hard to identify. |
 | [interpolation.png](results/interpolation.png) | One 10-image path for each model. The CSV scores 100 paths. Lower interpolation CV means more even changes between frames. |
+| [training_curves.png](results/training_curves.png) | Per-epoch training losses and feature distance and recall at checkpoints every five epochs for the bundled seed-0 runs. |
+
+Run `python plot_training.py` to rebuild the training curves from the
+[archived CSVs](results/training/). The checkpoint curves use 5,000 images per
+group, and `metrics.csv` uses 10,000 for the final comparison.
 
 For these seed-0 checkpoints, the DCGAN reached a recall of 0.856 and an edge variance of
 0.148, close to the real-image value of 0.150. The VAE's recall was 0.488, and it had the
