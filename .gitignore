@@ -6,11 +6,3 @@ venv/
 .vscode/
 .idea/
 data/
-runs/
-runs_smoke/
-results_smoke/
-comparison/
-*.pt
-!trained_models/**/*.pt
-trained_models/*/eval/
-trained_models/cache/

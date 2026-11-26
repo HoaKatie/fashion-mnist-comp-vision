@@ -24,7 +24,7 @@ Run the commands below from the inner project folder that contains `compare.py`,
 | 10 | [results/](../results/), [report.tex](report.tex) | Look at the full-run scores and figures, then read the report's Method and Analysis sections to connect the numbers to the two models. |
 
 [`src/__init__.py`](../src/__init__.py) makes `src` importable. [`.gitignore`](../.gitignore)
-keeps local data, environments, and new run outputs out of Git.
+keeps local data, virtual environments, and Python caches out of Git.
 
 ## Set up the Python environment
 
@@ -42,15 +42,15 @@ If you already have the project's Conda environment, activate it with
 ## Run the demo using the saved models
 
 ```bash
-python compare.py --samples 1000
+python compare.py --samples 1000 --output comparison/demo
 ```
 
-The script uses the bundled checkpoints and writes the output to `comparison/`.
+The script uses the bundled checkpoints and writes the output to `comparison/demo/`.
 On first use, Torchvision downloads Fashion-MNIST into `data/`. To reuse an
 existing dataset, pass the folder that contains `FashionMNIST/`.
 
 ```bash
-python compare.py --samples 1000 --data /path/to/data
+python compare.py --samples 1000 --output comparison/demo --data /path/to/data
 ```
 
 The comparison runs in this order.
@@ -71,8 +71,8 @@ when quoting figures from the report's 10,000-image comparison. In that run, fea
 and recall were higher for the DCGAN, and its edge variance was closer to the real baseline.
 The VAE's interpolation steps were more even.
 
-To run the full comparison with the saved checkpoints, use `python compare.py`.
-Run this command to regenerate the report's CSV and figures in `results/`.
+Use `python compare.py` for the full comparison with the saved checkpoints.
+Run this Python command to regenerate the report's CSV and figures in `results/`.
 
 ```bash
 python compare.py --device cpu --output results
@@ -80,9 +80,9 @@ python compare.py --device cpu --output results
 
 ## Training commands for reference
 
-Each command trains one model and saves it under `runs/`. With these settings, the
-VAE and DCGAN run for 30 epochs each and the classifier runs for 8 epochs. A rerun
-with the same settings can replace that run's outputs in `runs/`.
+These commands save checkpoints under `runs/`. The VAE and DCGAN run for 30 epochs
+each and the classifier runs for 8 epochs. A rerun with the same settings can
+replace that run's outputs in `runs/`.
 
 ```bash
 python -m src.train_vae --config configs/vae.yaml
@@ -90,8 +90,8 @@ python -m src.train_gan --config configs/gan.yaml
 python -m src.train_classifier --config configs/classifier.yaml
 ```
 
-After those commands finish, pass the new checkpoint paths to the same comparison.
-This example writes its results to `comparison/retrained/`.
+Once training finishes, this command uses the new checkpoints from `runs/` and
+writes their results to `comparison/retrained/`.
 
 ```bash
 python compare.py \

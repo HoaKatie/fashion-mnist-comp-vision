@@ -4,36 +4,92 @@ COMP 4102 final project. We compare two ways of generating clothing images. We w
 which model makes sharper images, which covers the real data better, and what happens when we
 move between two points in the latent space.
 
-The VAE decoder and the DCGAN generator use the same convolutional layers. Both models get
-the same training data, batch size, latent size, and number of epochs. The VAE learns by
-reconstructing images and regularizing its latent space. The DCGAN learns by trying to fool a
-discriminator.
+## The two models
 
-## Run the comparison
+- **VAE.** The encoder turns a clothing image into a mean and log-variance. The decoder
+  reconstructs the image from a sampled code. Training balances reconstruction error
+  with a penalty that keeps the codes close to standard normal noise.
+- **DCGAN.** The generator makes clothing images from random noise. The discriminator
+  learns to score real and generated images, and the generator learns to raise its
+  score on the generated images.
 
-Open a terminal in this folder.
+The VAE decoder and the DCGAN generator use the same convolutional layer design. Both
+models get the same training data, batch size, latent size, and number of epochs. A
+separate Fashion-MNIST classifier supplies features and class predictions for the comparison.
+
+## Setup
+
+Open a terminal in this project folder. Create the environment and install the dependencies once.
 
 ```bash
+# Create a local Python environment for the project.
 python3 -m venv .venv
+
+# Activate the environment in this terminal.
 source .venv/bin/activate
+
+# Install the project's Python dependencies.
 python -m pip install -r requirements.txt
+```
+
+## Usage
+
+With the environment active, choose a quick demo or the full comparison.
+Both use the saved models in `trained_models/`.
+
+```bash
+# Run the quick demo with 1,000 images per group and save it in comparison/demo/.
+python compare.py --samples 1000 --output comparison/demo
+
+# Run the full comparison with 10,000 images per group and save it in comparison/.
 python compare.py
 ```
 
-The command loads the two saved seed-0 models and the clothing classifier from `trained_models/`.
-It downloads Fashion-MNIST into `data/` on first use. For a quick look, run
-`python compare.py --samples 1000`. Use `--data /path/to/data` if you already have a folder
-containing `FashionMNIST/`.
+Fashion-MNIST downloads into `data/` on first use. Add `--data /path/to/data` to a Python
+command to reuse a folder that already contains `FashionMNIST/`.
 
-## What the comparison does
+### Training commands for reference
 
-We generate 10,000 images from each model using the same random noise. For the image quality
-and coverage scores, we compare each generator with the real test split. We also score
-10,000 real training images against the test split to get a real-image reference.
+**Training is already complete.** The demo and full comparison use the submitted checkpoints
+in `trained_models/`. The commands below are for reference and save new training outputs
+under `runs/`.
 
-The command saves its files in `comparison/`. The links below open the results used in
-the [LaTeX report](report/report.tex). To regenerate those files from the saved checkpoints,
-run `python compare.py --device cpu --output results`.
+```bash
+# Train the VAE for 30 epochs.
+python -m src.train_vae --config configs/vae.yaml
+
+# Train the DCGAN for 30 epochs.
+python -m src.train_gan --config configs/gan.yaml
+
+# Train the evaluation classifier for 8 epochs.
+python -m src.train_classifier --config configs/classifier.yaml
+```
+
+## How compare.py works
+
+Start at `compare()` in [compare.py](compare.py). Both runs follow the same steps.
+
+1. **Prepare the real reference.** Load the saved clothing classifier and read the
+   Fashion-MNIST test images. The classifier gives each image a vector of 128 features.
+   The test set's actual labels supply the reference clothing-class shares.
+2. **Score the real-image baseline.** Take a random sample of real training images and
+   compare it with the test images. The `Real train` row shows the scores for two
+   different groups of real images.
+3. **Generate and score each model's images.** Load the VAE and DCGAN checkpoints in
+   turn. Reset the noise seed so both models get the same 32-number vectors. The VAE
+   decoder and DCGAN generator turn those vectors into images. `compare_images()`
+   uses classifier features for distance, precision, and recall, predicted labels
+   for the class mix, and image pixels for the edge score.
+4. **Measure changes between images.** `interpolate()` picks 100 pairs of noise
+   vectors and makes 10 frames along each path. It measures how evenly the classifier
+   features change from one frame to the next. The figure shows one path per model.
+5. **Save the outputs.** Write one CSV row each for the real training sample, VAE,
+   and DCGAN. Save the image grids and class chart alongside it.
+
+## Results and figures
+
+The repository includes the full comparison in `results/`, so you can open the scores
+and figures below before running anything. A fresh full comparison writes to `comparison/`.
 
 | File | What to look at |
 |---|---|
@@ -50,20 +106,14 @@ images, so treat its predictions for generated clothes as estimates.
 
 ## Where to read the code
 
-- [compare.py](compare.py) loads the models, generates images, and runs the comparison.
+- [models/__init__.py](src/models/__init__.py) rebuilds the networks and loads the saved weights.
 - [metrics.py](src/metrics.py) computes the scores, and [plots.py](src/plots.py) saves the figures.
 - [data.py](src/data.py) pads the 28×28 images to 32×32 and scales their pixel values.
 - [networks.py](src/models/networks.py) has the shared layers. [vae.py](src/models/vae.py),
   [gan.py](src/models/gan.py), and [classifier.py](src/models/classifier.py) show what each
   model does with its layers.
-- [losses.py](src/losses.py) has the VAE and GAN losses that are written out in the report.
+- [losses.py](src/losses.py) defines the VAE and GAN training losses.
 
 The original training loops are in [train_vae.py](src/train_vae.py), [train_gan.py](src/train_gan.py),
 and [train_classifier.py](src/train_classifier.py). They use the settings in [configs/](configs/)
 and write to `runs/` by default. The comparison uses the checkpoints in [trained_models/](trained_models/).
-
-## Open the report in Overleaf
-
-Copy [report.tex](report/report.tex) into `main.tex`, fill in the team names, and upload the
-four PNGs linked above to an Overleaf folder called `results`. Use pdfLaTeX. The references
-are included in the source.
