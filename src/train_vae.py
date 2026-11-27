@@ -26,7 +26,6 @@ from src.utils import (
     set_seed,
 )
 
-
 def parse_args():
     parser = argparse.ArgumentParser(description="Train a VAE")
     # Pick the YAML with --config and change individual values with --set
@@ -39,7 +38,6 @@ def parse_args():
         help="override config values",
     )
     return parser.parse_args()
-
 
 def train(cfg):
     # Set the seed and get batches of real clothes
@@ -62,7 +60,7 @@ def train(cfg):
 
     # Make the folder for weights, sample images and logs
     run_dir = prepare_run_dir(cfg)
-    # I keep the preview noise fixed so the grids show what training changed
+    # We keep the preview noise fixed so the grids show what training changed
     z_fixed = fixed_noise(64, cfg["latent_dim"]).to(device)
     print(
         f"[vae] {run_dir.name} | params={count_parameters(model):,} | device={device}"
@@ -123,7 +121,6 @@ def train(cfg):
             )
     return run_dir
 
-
 def main():
     args = parse_args()
     # Load the shared and VAE settings, then apply any --set values
@@ -131,7 +128,6 @@ def main():
     if cfg["model"] != "vae":
         raise SystemExit(f"{args.config} is a '{cfg['model']}' config, expected 'vae'")
     train(cfg)
-
 
 if __name__ == "__main__":
     main()

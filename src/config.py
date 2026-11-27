@@ -1,9 +1,7 @@
-"""Read YAML settings for training. Start with the shared file and add any changes for this run."""
+"""Read YAML settings for training. Start with the shared file and add any changes for this run"""
 
 from pathlib import Path
-
 import yaml
-
 
 def _parse_value(raw):
     # Turn command line text into the number or other value it means
@@ -15,7 +13,6 @@ def _parse_value(raw):
         except ValueError:
             return value
     return value
-
 
 def load_config(path, overrides=None):
     path = Path(path)

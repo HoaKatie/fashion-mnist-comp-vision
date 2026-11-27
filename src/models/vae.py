@@ -1,6 +1,6 @@
 """The VAE learns to rebuild images by sampling a code for each one.
 
-In compare.py I use the decoder to make new images from noise.
+In compare.py we use the decoder to make new images from noise.
 """
 
 import torch

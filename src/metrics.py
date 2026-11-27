@@ -4,12 +4,10 @@ Run python compare.py from the project folder to get these scores for the saved 
 """
 
 import warnings
-
 import numpy as np
 import torch
 import torch.nn.functional as F
 from scipy import linalg
-
 
 def frechet_distance(feats_a, feats_b):
     """Compare the centre and spread of two sets of image features."""
@@ -63,7 +61,7 @@ def _fraction_inside(queries, support, support_radii, batch=1000):
 
 
 def precision_recall(real_feats, fake_feats, k=3):
-    """Use neighbour distances to score fidelity and diversity (Following: Kynkaanniemi et al, 2019).
+    """Use neighbour distances to score fidelity and diversity (Kynkäänniemi et al., 2019).
     Precision asks how many generated images are in real neighbourhoods.
     Recall asks how much of the real set is in generated neighbourhoods.
     """

@@ -18,18 +18,15 @@ from matplotlib import pyplot as plt
 RESULTS = Path(__file__).resolve().parent / "results"
 ARCHIVE = RESULTS / "training"
 
-
 def read_rows(filename):
     with (ARCHIVE / filename).open(newline="") as file:
         return list(csv.DictReader(file))
-
 
 def plot_line(axis, rows, column, label, **style):
     # Turn the CSV text into numbers for the x and y axes
     epochs = [int(row["epoch"]) for row in rows]
     values = [float(row[column]) for row in rows]
     axis.plot(epochs, values, label=label, **style)
-
 
 def main():
     vae_log = read_rows("vae_train_log.csv")

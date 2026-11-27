@@ -1,10 +1,10 @@
-"""Shared layer designs for the VAE and DCGAN. Each model has its own weights."""
+"""Shared layer designs for the VAE and DCGAN. Each model has its own weights"""
 
 import torch.nn as nn
 
 
 class ConvDecoder(nn.Module):
-    """Grow a batch of latent codes into 32 by 32 images."""
+    """Grow a batch of latent codes into 32 by 32 images"""
 
     def __init__(self, latent_dim, out_channels, base=64):
         super().__init__()
@@ -51,14 +51,13 @@ class ConvEncoder(nn.Module):
             nn.LeakyReLU(0.2, inplace=True),
         )
         # Bring the 4 by 4 grid down to one value per output channel
-        # For the VAE thats a mean and log variance for each code coordinate
-        # For D its one score per image
+        # For the VAE that's a mean and log variance for each code coordinate
+        # For D it's one score per image
         self.head = nn.Conv2d(base * 4, out_dim, kernel_size=4, stride=1, padding=0)
 
     def forward(self, x):
         # Flatten the final output so each image has one row
         return self.head(self.features(x)).flatten(1)
-
 
 def init_dcgan_weights(module):
     """Use the same starting weight distributions for both models."""
@@ -71,7 +70,6 @@ def init_dcgan_weights(module):
         nn.init.normal_(module.weight, 1.0, 0.02)
         nn.init.zeros_(module.bias)
 
-
 def count_parameters(module):
-    # Count all parameter values so I can log the model size
+    # Count all parameter values so we can log the model size
     return sum(p.numel() for p in module.parameters())

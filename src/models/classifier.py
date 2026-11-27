@@ -1,4 +1,4 @@
-"""CNN for the ten clothing classes. I use its features and labels to compare the generated images."""
+"""CNN for the ten clothing classes. We use its features and labels to compare the generated images"""
 
 import torch.nn as nn
 
@@ -16,7 +16,7 @@ def _block(c_in, c_out):
 class EvalClassifier(nn.Module):
     def __init__(self, channels, num_classes, feature_dim=128):
         super().__init__()
-        # Max pooling cuts width and height in half after each of the first two blocks
+        # Max pooling cuts width and height in half after the second and fourth blocks
         self.features = nn.Sequential(
             *_block(channels, 32),
             *_block(32, 32),

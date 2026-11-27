@@ -85,7 +85,7 @@ def parse_args():
             parser.error(f"missing checkpoint {path}")
 
     # The full CPU run with the saved models goes straight in results/
-    # I keep quick runs and other settings in a separate folder
+    # We keep quick runs and other settings in a separate folder
     custom = (
         args.samples != DEFAULT_SAMPLES
         or args.device != DEFAULT_DEVICE
@@ -166,7 +166,7 @@ def compare(args):
     test_shares = class_shares(test_labels, len(CLASS_NAMES))
 
     # Pick random training images to score against the test set too
-    # This gives me a baseline for how two groups of real images score
+    # This gives us a baseline for how two groups of real images score
     real_images, _ = load_split(
         DATASET, "train", args.data, count=args.samples, shuffle_seed=EVAL_SEED
     )
@@ -270,7 +270,6 @@ def compare(args):
             f"sharpness {row['laplacian_var']:.3f}"
         )
     print(f"Saved metrics and plots to {args.output}")
-
 
 if __name__ == "__main__":
     compare(parse_args())

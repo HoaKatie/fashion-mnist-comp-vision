@@ -4,7 +4,7 @@ Run from the project folder:
     python -m src.train_classifier
 
 Uses configs/classifier.yaml and saves classifier.pt under runs/.
-For compare.py I use the classifier already in trained_models/.
+For compare.py we use the classifier already in trained_models/.
 """
 
 import argparse
@@ -16,7 +16,6 @@ from src.config import load_config
 from src.data import dataset_info, get_loader, load_split
 from src.models import EvalClassifier
 from src.utils import get_device, run_dir_for, save_json, set_seed
-
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Train the evaluation classifier")
@@ -31,7 +30,6 @@ def parse_args():
     )
     return parser.parse_args()
 
-
 @torch.no_grad()
 def accuracy(model, images, labels, device, batch=1000):
     # Eval mode turns off dropout and uses the saved batch norm stats
@@ -42,7 +40,6 @@ def accuracy(model, images, labels, device, batch=1000):
         correct += (model(x.to(device)).argmax(1).cpu() == y).sum().item()
     return correct / len(labels)
 
-
 def main():
     # Load the settings and set the seed so the run can be repeated
     args = parse_args()
@@ -51,7 +48,7 @@ def main():
     device = get_device(cfg["device"])
     info = dataset_info(cfg["dataset"])
 
-    # I use the test split to check accuracy on images the classifier didnt train on
+    # Train on the train split and check accuracy on test images the classifier didn't train on
     loader = get_loader(
         cfg["dataset"],
         "train",
@@ -92,7 +89,6 @@ def main():
         out_dir / "metrics.json",
     )
     print(f"Saved to {out_dir}")
-
 
 if __name__ == "__main__":
     main()

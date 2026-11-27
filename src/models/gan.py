@@ -7,7 +7,6 @@ import torch.nn as nn
 
 from src.models.networks import ConvDecoder, ConvEncoder
 
-
 class GAN(nn.Module):
     def __init__(self, latent_dim, channels, base=64):
         super().__init__()

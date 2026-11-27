@@ -1,4 +1,4 @@
-# A shared setting for both VAE and GAN
+# Settings shared by the VAE, GAN and classifier
 
 dataset: fashion_mnist
 data_root: data

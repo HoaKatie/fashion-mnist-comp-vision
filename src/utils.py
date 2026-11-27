@@ -1,4 +1,4 @@
-"""Helpers for picking a device, keeping runs repeatable and saving training outputs."""
+"""Helpers for picking a device, keeping runs repeatable and saving training outputs"""
 
 import csv
 import json
@@ -11,13 +11,11 @@ import torch
 import yaml
 from torchvision.utils import save_image
 
-
 def set_seed(seed):
     # Set the seeds so runs can be repeated
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)  # PyTorch also seeds the GPU generators
-
 
 def get_device(preferred="auto"):
     # If auto, try CUDA first, then Apple MPS, then CPU
@@ -29,7 +27,6 @@ def get_device(preferred="auto"):
         return torch.device("mps")
     return torch.device("cpu")
 
-
 def run_name(cfg):
     """Use the training settings to name the run folder."""
     if cfg["model"] == "classifier":
@@ -40,13 +37,11 @@ def run_name(cfg):
         name += f"_beta{float(cfg['beta']):g}"
     return f"{name}_seed{cfg['seed']}"
 
-
 def run_dir_for(cfg):
     return Path(cfg["output_dir"]) / run_name(cfg)
 
-
 def prepare_run_dir(cfg):
-    """Make a clean output folder for this run, replacing an earlier run with the same name."""
+    """Make a clean output folder for this run, replacing an earlier run with the same name"""
     run_dir = run_dir_for(cfg)
     # Clear an earlier run with the same name so old logs don't mix in
     if run_dir.exists():
@@ -58,7 +53,6 @@ def prepare_run_dir(cfg):
     with open(run_dir / "config.yaml", "w") as f:
         yaml.safe_dump(cfg, f, sort_keys=True)
     return run_dir
-
 
 def fixed_noise(n, latent_dim, seed=1234):
     """Reuse the same noise at every epoch to compare the sample grids."""

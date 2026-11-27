@@ -7,7 +7,6 @@ matplotlib.use("Agg")
 from matplotlib import pyplot as plt
 from torchvision.utils import make_grid
 
-
 def save_grids(path, groups, nrow, columns, size):
     # Give each group of images its own spot in the figure
     rows = len(groups) // columns
@@ -24,7 +23,6 @@ def save_grids(path, groups, nrow, columns, size):
         ax.axis("off")
     figure.savefig(path, dpi=160)
     plt.close(figure)
-
 
 def save_class_balance(path, classes, groups):
     figure, ax = plt.subplots(figsize=(9, 4), layout="constrained")

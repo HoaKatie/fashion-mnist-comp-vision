@@ -1,6 +1,6 @@
 """Load Fashion-MNIST.
 
-Training uses batches from get_loader() and compare.py reads a split with load_split().
+Training uses batches from get_loader() and compare.py reads a split with load_split()
 """
 
 import torch
@@ -21,13 +21,11 @@ TRANSFORM = transforms.Compose(
     ]
 )
 
-
 def dataset_info(name):
     # All three models take one grayscale channel at the same size
     if name != "fashion_mnist":
         raise ValueError(f"Unknown dataset {name!r}")
     return {"channels": 1, "num_classes": len(CLASS_NAMES), "image_size": IMAGE_SIZE}
-
 
 def get_dataset(name, split, root="data"):
     dataset_info(name)
@@ -37,7 +35,6 @@ def get_dataset(name, split, root="data"):
     return datasets.FashionMNIST(
         root, train=split == "train", download=True, transform=TRANSFORM
     )
-
 
 def get_loader(
     name,
@@ -68,7 +65,6 @@ def get_loader(
         persistent_workers=num_workers > 0,
         pin_memory=torch.cuda.is_available(),
     )
-
 
 def load_split(name, split, root="data", count=None, shuffle_seed=None):
     """Load one split into image and label tensors. Use count to take fewer images."""

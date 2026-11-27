@@ -3,9 +3,8 @@
 import torch
 import torch.nn.functional as F
 
-
 def vae_loss(x, x_recon, mu, logvar, beta=1.0):
-    """VAE loss is pixel error plus beta times KL. Return both parts for the log too."""
+    """VAE loss is pixel error plus beta times KL. Return both parts for the log too"""
     batch = x.size(0)
 
     # Sum the pixel errors for each image and average over the batch

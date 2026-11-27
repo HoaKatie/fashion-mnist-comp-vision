@@ -26,7 +26,6 @@ from src.utils import (
     set_seed,
 )
 
-
 def parse_args():
     parser = argparse.ArgumentParser(description="Train a DCGAN")
     # Pick the YAML with --config and change individual values with --set
@@ -39,7 +38,6 @@ def parse_args():
         help="override config values",
     )
     return parser.parse_args()
-
 
 def train(cfg):
     # Set the seed and get batches of real clothes
@@ -65,7 +63,7 @@ def train(cfg):
 
     # Make the folder for weights, sample images and logs
     run_dir = prepare_run_dir(cfg)
-    # I use the same noise for each preview so I can see what training changed
+    # We use the same noise for each preview so we can see what training changed
     z_fixed = fixed_noise(64, cfg["latent_dim"]).to(device)
     print(
         f"[gan] {run_dir.name} | params={count_parameters(model):,} | device={device}"
@@ -144,7 +142,6 @@ def train(cfg):
             )
     return run_dir
 
-
 def main():
     args = parse_args()
     # Load the shared and GAN settings, then apply any --set values
@@ -152,7 +149,6 @@ def main():
     if cfg["model"] != "gan":
         raise SystemExit(f"{args.config} is a '{cfg['model']}' config, expected 'gan'")
     train(cfg)
-
 
 if __name__ == "__main__":
     main()
