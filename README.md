@@ -53,7 +53,7 @@ folder.
 Fashion-MNIST downloads into `data/` on first use. Add `--data /path/to/data` to a Python
 command to reuse a folder that already contains `FashionMNIST/`.
 
-### Training commands for reference
+### Training commands (For REFERENCE ONLY - since we already ran it)
 
 **Training is already complete.** The demo and full comparison use the submitted checkpoints
 in `trained_models/`. The commands below are for reference and save new training outputs
