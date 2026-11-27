@@ -1,7 +1,6 @@
-"""Define how the VAE encodes, samples, and decodes an image.
+"""The VAE learns to rebuild images by sampling a code for each one.
 
-train_vae.py uses the full path to learn reconstructions. compare.py uses
-decode() to turn random noise into images with the saved decoder.
+In compare.py I use the decoder to make new images from noise.
 """
 
 import torch
@@ -9,42 +8,43 @@ import torch.nn as nn
 
 from src.models.networks import ConvDecoder, ConvEncoder
 
+
 class VAE(nn.Module):
     def __init__(self, latent_dim, channels, base=64):
         super().__init__()
         self.latent_dim = latent_dim
-        # A latent code has 32 entries by default. The encoder outputs 32 means
-        # and 32 log-variances, and the decoder takes a single code of length 32.
+        # With 32 latent values, the encoder needs 32 means and 32 log variances
+        # The decoder only takes the one sampled code of length 32
         self.encoder = ConvEncoder(channels, 2 * latent_dim, base)
         self.decoder = ConvDecoder(latent_dim, channels, base)
 
     def encode(self, x):
-        # Split the output across features, keeping one pair of vectors per image.
+        # Split into means and log variances, one pair of vectors per image
         mu, logvar = self.encoder(x).chunk(2, dim=1)
         return mu, logvar
 
     @staticmethod
     def reparameterize(mu, logvar):
-        # logvar is log(sigma squared). Taking exp(logvar / 2) gives sigma.
-        # Draw unit normal noise, multiply by sigma, and add mu to sample the code.
-        # The noise is separate, so gradients can pass through the scale and shift.
+        # logvar is log of variance, so exp(logvar / 2) gives the standard deviation
+        # Scale standard normal noise by the standard deviation and shift by the mean
+        # Drawing the noise separately lets gradients still reach the mean and scale
         std = torch.exp(0.5 * logvar)
         return mu + std * torch.randn_like(std)
 
     def forward(self, x):
-        # 1. Get the latent distribution for the input image.
+        # Get the code distribution for this image
         mu, logvar = self.encode(x)
-        # 2. Sample a code from that distribution.
+        # Draw one code from it
         z = self.reparameterize(mu, logvar)
-        # 3. Decode the sample and return the Gaussian parameters for the KL loss.
+        # Decode it and keep the mean and log variance for the KL loss
         return self.decoder(z), mu, logvar
 
     def decode(self, z):
-        # We can also decode random noise directly to generate a new image.
+        # Decode a random code to get a new image
         return self.decoder(z)
 
     @torch.no_grad()
     def reconstruct(self, x):
-        # Decode the mean code for a reconstruction without sampling noise.
+        # Use the mean code if we want a reconstruction without extra noise
         mu, _ = self.encode(x)
         return self.decoder(mu)

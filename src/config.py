@@ -1,37 +1,36 @@
-"""Read and combine the YAML training settings.
-
-The training script loads its model's YAML file from configs/. This module
-starts with the shared values and applies the model settings and --set options.
-"""
+"""Read YAML settings for training. Start with the shared file and add any changes for this run."""
 
 from pathlib import Path
+
 import yaml
 
+
 def _parse_value(raw):
-    # Convert text from the command line into the number, string, or null it represents.
+    # Turn command line text into the number or other value it means
     value = yaml.safe_load(raw)
     if isinstance(value, str):
-        # YAML reads "1e-4" as a string and we want it as a float
+        # Treat scientific notation like 1e-4 as a float too
         try:
             return float(value)
         except ValueError:
             return value
     return value
 
+
 def load_config(path, overrides=None):
     path = Path(path)
     with open(path) as f:
         cfg = yaml.safe_load(f) or {}
 
-    # An optional base file is relative to this YAML file, usually configs/shared.yaml.
+    # Look for the base YAML next to this settings file
     base = cfg.pop("base", None)
     if base is not None:
         merged = load_config(path.parent / base)
-        # Model values win when the same setting appears in both files.
+        # Use the model's value if both files have the same key
         merged.update(cfg)
         cfg = merged
 
-    # Apply command-line changes last and check that each key names an existing setting.
+    # Apply --set last and catch typos in setting names
     for item in overrides or []:
         key, sep, raw = item.partition("=")
         if not sep:

@@ -1,47 +1,46 @@
-"""Define the shared image layers for the VAE and DCGAN.
-
-ConvDecoder grows a latent vector into an image. ConvEncoder shrinks an image
-into a vector. The two models use the same layer designs and learn their own
-weights. vae.py and gan.py import these classes.
-"""
+"""Shared layer designs for the VAE and DCGAN. Each model has its own weights."""
 
 import torch.nn as nn
 
+
 class ConvDecoder(nn.Module):
-    """Turn a batch of latent vectors into 32 by 32 images."""
+    """Grow a batch of latent codes into 32 by 32 images."""
 
     def __init__(self, latent_dim, out_channels, base=64):
         super().__init__()
         self.net = nn.Sequential(
-            # 1. Turn the latent vector into a 4 by 4 grid with 256 channels by default.
-            nn.ConvTranspose2d(latent_dim, base * 4, kernel_size=4, stride=1, padding=0, bias=False),
+            # Start with a 4 by 4 grid, 256 channels with the default settings
+            nn.ConvTranspose2d(
+                latent_dim, base * 4, kernel_size=4, stride=1, padding=0, bias=False
+            ),
             nn.BatchNorm2d(base * 4),
             nn.ReLU(inplace=True),
-            # 2. Grow to 8 by 8, then 16 by 16, with fewer channels at each size.
-            # Batch normalization scales the channel activations. ReLU clips negatives.
+            # Grow to 8 by 8 and then 16 by 16 while using fewer channels
+            # Batch norm keeps the activations on a steady scale and ReLU clips negatives
             nn.ConvTranspose2d(base * 4, base * 2, 4, 2, 1, bias=False),
             nn.BatchNorm2d(base * 2),
             nn.ReLU(inplace=True),
             nn.ConvTranspose2d(base * 2, base, 4, 2, 1, bias=False),
             nn.BatchNorm2d(base),
             nn.ReLU(inplace=True),
-            # 3. Grow to 32 by 32 with one grayscale channel. tanh gives [-1, 1] pixels.
+            # One grayscale channel at 32 by 32, tanh keeps pixels in [-1, 1]
             nn.ConvTranspose2d(base, out_channels, 4, 2, 1),
             nn.Tanh(),
         )
 
     def forward(self, z):
-        # Each row in z is one code. Treat it as a 1 by 1 image with latent_dim channels.
+        # Reshape each code to a 1 by 1 grid so the first convolution can use it
         return self.net(z.view(z.size(0), -1, 1, 1))
 
+
 class ConvEncoder(nn.Module):
-    """Summarize each image as a short vector of numbers."""
+    """Shrink each image to a vector of features or scores."""
 
     def __init__(self, in_channels, out_dim, base=64):
         super().__init__()
         self.features = nn.Sequential(
-            # 1. Halve width and height at each step. The sizes are 32, 16, 8, then 4.
-            # Skip batch normalization on the first layer, as in the DCGAN design.
+            # Shrink the image from 32 to 16 to 8 to 4 pixels on each side
+            # Skip batch norm in the first block like in DCGAN
             nn.Conv2d(in_channels, base, 4, 2, 1),
             nn.LeakyReLU(0.2, inplace=True),
             nn.Conv2d(base, base * 2, 4, 2, 1, bias=False),
@@ -51,18 +50,19 @@ class ConvEncoder(nn.Module):
             nn.BatchNorm2d(base * 4),
             nn.LeakyReLU(0.2, inplace=True),
         )
-        # 2. Collapse the final 4 by 4 grid to one value per output channel.
-        # This gives the VAE two numbers per latent coordinate,
-        # or gives the discriminator one score for the entire image.
+        # Bring the 4 by 4 grid down to one value per output channel
+        # For the VAE thats a mean and log variance for each code coordinate
+        # For D its one score per image
         self.head = nn.Conv2d(base * 4, out_dim, kernel_size=4, stride=1, padding=0)
 
     def forward(self, x):
-        # Run the feature layers and output layer, then return one vector per image.
+        # Flatten the final output so each image has one row
         return self.head(self.features(x)).flatten(1)
 
+
 def init_dcgan_weights(module):
-    """Start both models with weights drawn from the same distributions."""
-    # Convolution weights start near zero, and batch normalization scales start near one.
+    """Use the same starting weight distributions for both models."""
+    # Start conv weights near zero and batch norm scales near one
     if isinstance(module, (nn.Conv2d, nn.ConvTranspose2d)):
         nn.init.normal_(module.weight, 0.0, 0.02)
         if module.bias is not None:
@@ -71,6 +71,7 @@ def init_dcgan_weights(module):
         nn.init.normal_(module.weight, 1.0, 0.02)
         nn.init.zeros_(module.bias)
 
+
 def count_parameters(module):
-    # Add up the number of values in each parameter tensor for the training log.
+    # Count all parameter values so I can log the model size
     return sum(p.numel() for p in module.parameters())

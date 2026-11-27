@@ -1,7 +1,6 @@
-"""Build models and handle their checkpoints.
+"""Build the models and save their weights during training.
 
-The training scripts use build_model and save_checkpoint for the generators.
-compare.py uses load_checkpoint and load_classifier to restore the saved models.
+compare.py uses this file to load the checkpoints.
 """
 
 import torch
@@ -11,10 +10,19 @@ from src.models.classifier import EvalClassifier
 from src.models.gan import GAN
 from src.models.vae import VAE
 
-__all__ = ["VAE", "GAN", "EvalClassifier", "build_model", "save_checkpoint", "load_checkpoint", "load_classifier"]
+__all__ = [
+    "VAE",
+    "GAN",
+    "EvalClassifier",
+    "build_model",
+    "save_checkpoint",
+    "load_checkpoint",
+    "load_classifier",
+]
+
 
 def build_model(cfg):
-    # Read the image channel count and use the settings to choose the network's size.
+    # Use the settings for the input channels and network sizes
     channels = dataset_info(cfg["dataset"])["channels"]
     if cfg["model"] == "vae":
         return VAE(cfg["latent_dim"], channels, cfg["base_channels"])
@@ -22,30 +30,38 @@ def build_model(cfg):
         return GAN(cfg["latent_dim"], channels, cfg["base_channels"])
     raise ValueError(f"Unknown generative model {cfg['model']!r}")
 
+
 def save_checkpoint(path, model, cfg, epoch, train_time_sec):
-    # state_dict contains the weights and buffers such as batch-normalization statistics.
-    # Keep the settings and epoch beside it so the loader can rebuild the same network.
+    # state_dict has weights and other values like batch norm stats
+    # Save the settings and epoch too so we can rebuild this model later
     torch.save(
-        {"state_dict": model.state_dict(), "config": cfg, "epoch": epoch, "train_time_sec": train_time_sec},
+        {
+            "state_dict": model.state_dict(),
+            "config": cfg,
+            "epoch": epoch,
+            "train_time_sec": train_time_sec,
+        },
         path,
     )
 
+
 def load_checkpoint(path, device):
-    # 1. Read the stored settings and move the saved tensors to the chosen device.
+    # Read the checkpoint and load its tensors onto the chosen device
     ckpt = torch.load(path, map_location=device, weights_only=True)
     cfg = ckpt["config"]
-    # 2. Recreate the model with those settings, then fill it with the saved weights.
+    # Build the same layers from the saved settings before loading weights
     model = build_model(cfg).to(device)
     model.load_state_dict(ckpt["state_dict"])
-    # 3. Use the saved batch-normalization statistics when generating images.
+    # Eval mode uses the saved batch norm stats for new images
     model.eval()
     return model, cfg, ckpt["epoch"]
 
+
 def load_classifier(path, device):
-    # This checkpoint contains the clothing classifier and its test accuracy.
+    # The classifier file also has its accuracy on the test set
     ckpt = torch.load(path, map_location=device, weights_only=True)
     info = dataset_info("fashion_mnist")
-    # Rebuild the one-channel CNN with ten class outputs and switch it to evaluation mode.
+    # Build the same one-channel CNN with ten outputs and set it to eval
     clf = EvalClassifier(info["channels"], info["num_classes"]).to(device)
     clf.load_state_dict(ckpt["state_dict"])
     clf.eval()

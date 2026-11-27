@@ -1,27 +1,26 @@
-"""Provide the small helpers used across training and evaluation.
-
-The training scripts use these functions to set seeds, name run folders,
-and save outputs. compare.py also uses get_device().
-"""
+"""Helpers for picking a device, keeping runs repeatable and saving training outputs."""
 
 import csv
 import json
 import random
 import shutil
 from pathlib import Path
+
 import numpy as np
 import torch
 import yaml
 from torchvision.utils import save_image
 
+
 def set_seed(seed):
-    # Set the starting point of each random number generator used by the project.
+    # Set the seeds so runs can be repeated
     random.seed(seed)
     np.random.seed(seed)
-    torch.manual_seed(seed)  # also seeds CUDA and MPS
+    torch.manual_seed(seed)  # PyTorch also seeds the GPU generators
+
 
 def get_device(preferred="auto"):
-    # Use the requested device. In auto mode, look for CUDA, then Apple MPS, then CPU.
+    # If auto, try CUDA first, then Apple MPS, then CPU
     if preferred != "auto":
         return torch.device(preferred)
     if torch.cuda.is_available():
@@ -30,63 +29,72 @@ def get_device(preferred="auto"):
         return torch.device("mps")
     return torch.device("cpu")
 
+
 def run_name(cfg):
-    """Unique, human-readable name for one training run, e.g. vae_fashion_mnist_z32_beta1_seed0"""
+    """Use the training settings to name the run folder."""
     if cfg["model"] == "classifier":
         return f"classifier_{cfg['dataset']}"
-    # Generator runs include latent size and seed. VAE runs also include the KL weight.
+    # Put the latent size and seed in the name, plus beta for VAE runs
     name = f"{cfg['model']}_{cfg['dataset']}_z{cfg['latent_dim']}"
     if cfg["model"] == "vae":
         name += f"_beta{float(cfg['beta']):g}"
     return f"{name}_seed{cfg['seed']}"
 
+
 def run_dir_for(cfg):
     return Path(cfg["output_dir"]) / run_name(cfg)
 
+
 def prepare_run_dir(cfg):
-    """Create a fresh run directory (old results of the SAME run are replaced)"""
+    """Make a clean output folder for this run, replacing an earlier run with the same name."""
     run_dir = run_dir_for(cfg)
-    # A repeated run with the same name starts with an empty output folder.
+    # Clear an earlier run with the same name so old logs don't mix in
     if run_dir.exists():
         print(f"Note: replacing previous results in {run_dir}")
         shutil.rmtree(run_dir)
     (run_dir / "samples").mkdir(parents=True)
     (run_dir / "checkpoints").mkdir()
-    # Keep the final settings with the run, including settings passed through --set.
+    # Save the settings with any changes made using --set
     with open(run_dir / "config.yaml", "w") as f:
         yaml.safe_dump(cfg, f, sort_keys=True)
     return run_dir
 
+
 def fixed_noise(n, latent_dim, seed=1234):
-    """The same latent vectors every epoch, so sample grids are comparable over time"""
-    # This separate seed gives the same preview vectors each time.
+    """Reuse the same noise at every epoch to compare the sample grids."""
+    # Use a separate seed so the previews get the same noise every time
     return torch.randn(n, latent_dim, generator=torch.Generator().manual_seed(seed))
 
+
 def to_unit_range(x):
-    """[-1, 1] (model space) -> [0, 1] (image space)"""
+    """Scale model pixels from [-1, 1] to [0, 1] for saving."""
     return (x.clamp(-1, 1) + 1) / 2
 
+
 def save_grid(images, path, nrow=8):
-    # Send a copy for plotting to the CPU and scale its pixels for the image file.
+    # Move the grid to CPU and put pixels in the range the image writer needs
     save_image(to_unit_range(images.detach().cpu()), path, nrow=nrow, padding=2)
+
 
 def append_csv(path, row):
     path = Path(path)
     is_new = not path.exists()
-    # Write column names on the first call and add one row on each call.
+    # Write the header once and append a row each time
     with open(path, "a", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=list(row))
         if is_new:
             writer.writeheader()
         writer.writerow(row)
 
+
 def _to_builtin(obj):
-    # Turn arrays and numbers from NumPy or PyTorch into types JSON can store.
+    # Convert arrays and number types to values JSON understands
     if isinstance(obj, (np.ndarray, torch.Tensor)):
         return obj.tolist()
     if isinstance(obj, (np.generic,)):
         return obj.item()
     raise TypeError(f"Cannot serialise {type(obj)}")
+
 
 def save_json(obj, path):
     path = Path(path)
