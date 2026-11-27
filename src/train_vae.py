@@ -15,7 +15,7 @@ import torch
 from src.config import load_config
 from src.data import get_loader
 from src.losses import vae_loss
-from src.models import build_model, save_checkpoint
+from src.models.build import build_model, save_checkpoint
 from src.models.networks import count_parameters, init_dcgan_weights
 from src.utils import (
     append_csv,

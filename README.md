@@ -116,7 +116,7 @@ real test images, so we use its labels for generated clothes as estimates.
 
 ## Where to read the code
 
-- [models/__init__.py](src/models/__init__.py) builds the models and loads the saved weights.
+- [build.py](src/models/build.py) builds the models and saves or loads their checkpoints.
 - [metrics.py](src/metrics.py) works out the scores, and [plots.py](src/plots.py) saves the figures.
 - [data.py](src/data.py) pads the images from 28×28 to 32×32 and scales the pixels.
 - [networks.py](src/models/networks.py) has the layer designs the two models use.

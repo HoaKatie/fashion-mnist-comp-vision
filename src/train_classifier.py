@@ -14,7 +14,7 @@ import torch.nn.functional as F
 
 from src.config import load_config
 from src.data import dataset_info, get_loader, load_split
-from src.models import EvalClassifier
+from src.models.classifier import EvalClassifier
 from src.utils import get_device, run_dir_for, save_json, set_seed
 
 def parse_args():

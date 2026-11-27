@@ -23,7 +23,7 @@ from src.metrics import (
     precision_recall,
     slerp,
 )
-from src.models import load_checkpoint, load_classifier
+from src.models.build import load_checkpoint, load_classifier
 from src.plots import save_class_balance, save_grids
 from src.utils import get_device
 
